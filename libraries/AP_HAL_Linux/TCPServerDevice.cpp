@@ -1,13 +1,11 @@
-#include <AP_HAL/AP_HAL.h>
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-
-#include <stdio.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-
 #include "TCPServerDevice.h"
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <AP_HAL/AP_HAL.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -20,15 +18,15 @@ TCPServerDevice::TCPServerDevice(const char *ip, uint16_t port, bool wait):
 
 TCPServerDevice::~TCPServerDevice()
 {
-    if (sock != NULL) {
+    if (sock != nullptr) {
         delete sock;
-        sock = NULL;
+        sock = nullptr;
     }
 }
 
 ssize_t TCPServerDevice::write(const uint8_t *buf, uint16_t n)
 {
-    if (sock == NULL) {
+    if (sock == nullptr) {
         return -1;
     }
     return sock->send(buf, n);
@@ -40,20 +38,20 @@ ssize_t TCPServerDevice::write(const uint8_t *buf, uint16_t n)
  */
 ssize_t TCPServerDevice::read(uint8_t *buf, uint16_t n)
 {
-    if (sock == NULL) {
+    if (sock == nullptr) {
         sock = listener.accept(0);
-        if (sock != NULL) {
+        if (sock != nullptr) {
             sock->set_blocking(_blocking);
         }
     }
-    if (sock == NULL) {
+    if (sock == nullptr) {
         return -1;
     }
     ssize_t ret = sock->recv(buf, n, 1);
     if (ret == 0) {
         // EOF, go back to waiting for a new connection
         delete sock;
-        sock = NULL;
+        sock = nullptr;
         return -1;
     }
     return ret;
@@ -91,7 +89,7 @@ bool TCPServerDevice::open()
         ::printf("Waiting for connection on %s:%u ....\n",
                  _ip, (unsigned)_port);
         ::fflush(stdout);
-        while (sock == NULL) {
+        while (sock == nullptr) {
             sock = listener.accept(1000);
         }
         sock->set_blocking(_blocking);
@@ -104,9 +102,9 @@ bool TCPServerDevice::open()
 
 bool TCPServerDevice::close()
 {
-    if (sock != NULL) {
+    if (sock != nullptr) {
         delete sock;
-        sock = NULL;
+        sock = nullptr;
     }
     return true;
 }
@@ -120,5 +118,3 @@ void TCPServerDevice::set_blocking(bool blocking)
 void TCPServerDevice::set_speed(uint32_t speed)
 {
 }
-
-#endif

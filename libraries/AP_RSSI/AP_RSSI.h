@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,14 +24,18 @@ public:
     enum RssiType {
         RSSI_DISABLED           = 0,
         RSSI_ANALOG_PIN         = 1,
-        RSSI_RC_CHANNEL_VALUE   = 2
+        RSSI_RC_CHANNEL_VALUE   = 2,
+        RSSI_RECEIVER           = 3
     };
 
-    // constructor
     AP_RSSI();
 
+    /* Do not allow copies */
+    AP_RSSI(const AP_RSSI &other) = delete;
+    AP_RSSI &operator=(const AP_RSSI&) = delete;
+
     // destructor
-    ~AP_RSSI(void);        
+    ~AP_RSSI(void);
 
     // Initialize the rssi object and prepare it for use
     void init();
@@ -52,7 +55,6 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
-
     // RSSI parameters
     AP_Int8         rssi_type;                              // Type of RSSI being used
     AP_Int8         rssi_analog_pin;                        // Analog pin RSSI value found on

@@ -13,35 +13,31 @@ Example::
 """
 
 from waflib import Errors, Context, Utils
+from waflib.Configure import conf
 from waflib.Tools import compiler_c, compiler_cxx
 from waflib.Tools import clang, clangxx, gcc, gxx
+from waflib import Logs
 
 import os
+import re
 
-def _set_toolchain_prefix_wrapper(tool_module, var, compiler_names):
-    original_configure = tool_module.configure
-    def new_configure(cfg):
-        if cfg.env.TOOLCHAIN == 'native':
-            original_configure(cfg)
-            return
+@conf
+def find_gxx(conf):
+    names = ['g++', 'c++']
+    if conf.env.TOOLCHAIN != 'native':
+        names = ['%s-%s' % (conf.env.TOOLCHAIN, n) for n in names]
+    cxx = conf.find_program(names, var='CXX')
+    conf.get_cc_version(cxx, gcc=True)
+    conf.env.CXX_NAME = 'gcc'
 
-        last_exception = None
-        for name in compiler_names:
-            cfg.env.stash()
-            try:
-                cfg.env[var] = '%s-%s' % (cfg.env.TOOLCHAIN, name)
-                original_configure(cfg)
-            except Errors.ConfigurationError as e:
-                cfg.env.revert()
-                last_exception = e
-            else:
-                cfg.env.commit()
-                return
-        raise last_exception
-    tool_module.configure = new_configure
-
-_set_toolchain_prefix_wrapper(gxx, 'CXX', ('g++', 'c++'))
-_set_toolchain_prefix_wrapper(gcc, 'CC', ('gcc', 'cc'))
+@conf
+def find_gcc(conf):
+    names = ['gcc', 'cc']
+    if conf.env.TOOLCHAIN != 'native':
+        names = ['%s-%s' % (conf.env.TOOLCHAIN, n) for n in names]
+    cc = conf.find_program(names, var='CC')
+    conf.get_cc_version(cc, gcc=True)
+    conf.env.CC_NAME = 'gcc'
 
 def _clang_cross_support(cfg):
     if _clang_cross_support.called:
@@ -109,23 +105,40 @@ _set_clang_crosscompilation_wrapper(clangxx)
 def _filter_supported_c_compilers(*compilers):
     for k in compiler_c.c_compiler:
         l = compiler_c.c_compiler[k]
-        compiler_c.c_compiler[k] = [c for c in l if c in compilers]
+        compiler_c.c_compiler[k] = [c for c in compilers if c in l]
 
 def _filter_supported_cxx_compilers(*compilers):
     for k in compiler_cxx.cxx_compiler:
         l = compiler_cxx.cxx_compiler[k]
-        compiler_cxx.cxx_compiler[k] = [c for c in l if c in compilers]
+        compiler_cxx.cxx_compiler[k] = [c for c in compilers if c in l]
+
+@conf
+def find_toolchain_program(cfg, filename, **kw):
+    filename = Utils.to_list(filename)
+
+    if not kw.get('var', ''):
+        # just copy from the original implementation
+        kw['var'] = re.sub(r'[-.]', '_', filename[0].upper())
+
+    if cfg.env.TOOLCHAIN != 'native':
+        for i, name in enumerate(filename):
+            filename[i] = '%s-%s' % (cfg.env.TOOLCHAIN, name)
+
+    return cfg.find_program(filename, **kw)
 
 def configure(cfg):
-    if cfg.env.TOOLCHAIN == 'native':
-        cfg.load('compiler_cxx compiler_c')
-        return
-
     _filter_supported_c_compilers('gcc', 'clang')
     _filter_supported_cxx_compilers('g++', 'clang++')
 
-    cfg.env.AR = cfg.env.TOOLCHAIN + '-ar'
-    cfg.env.PKGCONFIG = cfg.env.TOOLCHAIN + '-pkg-config'
+    if cfg.env.TOOLCHAIN == 'native':
+        cfg.load('compiler_cxx compiler_c')
+        if cfg.env.COMPILER_CC == 'clang' or cfg.env.COMPILER_CXX == 'clang++':
+            Logs.warn("Warning! Native clang builds can be unstable, please use gcc/g++. \
+\nRefer ardupilot.org docs for more details.")
+        return
+
+    cfg.find_toolchain_program('ar')
+
     cfg.msg('Using toolchain', cfg.env.TOOLCHAIN)
     cfg.load('compiler_cxx compiler_c')
 

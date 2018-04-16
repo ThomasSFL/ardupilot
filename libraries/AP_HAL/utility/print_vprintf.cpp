@@ -1,4 +1,3 @@
-// -*- Mode: C++; c-basic-offset: 8; indent-tabs-mode: nil -*-
 /*
    Adapted from the avr-libc vfprintf:
 
@@ -67,7 +66,7 @@
 #define FL_FLTEXP   FL_PREC
 #define FL_FLTFIX   FL_LONG
 
-void print_vprintf(AP_HAL::Print *s, const char *fmt, va_list ap)
+void print_vprintf(AP_HAL::BetterStream *s, const char *fmt, va_list ap)
 {
         unsigned char c;        /* holds a char from the format string */
         uint16_t flags;
@@ -112,7 +111,7 @@ void print_vprintf(AP_HAL::Print *s, const char *fmt, va_list ap)
                         continue;
                     case '+':
                         flags |= FL_PLUS;
-                        /* FALLTHROUGH */
+                        FALLTHROUGH;
                     case ' ':
                         flags |= FL_SPACE;
                         continue;
@@ -429,7 +428,8 @@ flt_oper:
                     goto ultoa;
                 case 'p':
                     flags |= FL_ALT;
-                    /* no break */
+
+                    FALLTHROUGH;
                 case 'x':
                     if (flags & FL_ALT)
                         flags |= FL_ALTHEX;

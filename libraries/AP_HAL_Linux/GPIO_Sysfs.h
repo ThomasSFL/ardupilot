@@ -1,14 +1,14 @@
 #pragma once
 
+#include "AP_HAL_Linux.h"
 #include <AP_HAL/AP_HAL.h>
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-
-#include "AP_HAL_Linux.h"
 #include "GPIO.h"
 
-class Linux::DigitalSource_Sysfs : public AP_HAL::DigitalSource {
-    friend class Linux::GPIO_Sysfs;
+namespace Linux {
+
+class DigitalSource_Sysfs : public AP_HAL::DigitalSource {
+    friend class GPIO_Sysfs;
 public:
     ~DigitalSource_Sysfs();
     uint8_t read();
@@ -25,8 +25,8 @@ private:
 /**
  * Generic implementation of AP_HAL::GPIO for Linux based boards.
  */
-class Linux::GPIO_Sysfs : public AP_HAL::GPIO {
-    friend class Linux::DigitalSource_Sysfs;
+class GPIO_Sysfs : public AP_HAL::GPIO {
+    friend class DigitalSource_Sysfs;
 public:
     /* Fill this table with the real pin numbers. */
     static const unsigned pin_table[];
@@ -79,4 +79,4 @@ protected:
     static bool _export_pin(uint8_t vpin);
 };
 
-#endif
+}

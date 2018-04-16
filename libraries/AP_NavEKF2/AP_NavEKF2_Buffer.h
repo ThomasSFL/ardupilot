@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 // EKF Buffer models
 
 // this buffer model is to be used for observation buffers,
@@ -17,7 +15,7 @@ public:
     bool init(uint32_t size)
     {
         buffer = new element_t[size];
-        if(buffer == NULL)
+        if(buffer == nullptr)
         {
             return false;
         }
@@ -72,7 +70,7 @@ public:
         if (success) {
             element = buffer[bestIndex].element;
             _tail = (bestIndex+1)%_size;
-            //make time zero to stop using it again, 
+            //make time zero to stop using it again,
             //resolves corner case of reusing the element when head == tail
             buffer[bestIndex].element.time_ms = 0;
             return true;
@@ -113,7 +111,7 @@ private:
 };
 
 
-// Folowing buffer model is for IMU data,
+// Following buffer model is for IMU data,
 // it achieves a distance of sample size
 // between youngest and oldest
 template <typename element_type>
@@ -128,7 +126,7 @@ public:
     bool init(uint32_t size)
     {
         buffer = new element_t[size];
-        if(buffer == NULL)
+        if(buffer == nullptr)
         {
             return false;
         }
@@ -149,6 +147,13 @@ public:
         buffer[_youngest].element = element;
         // set oldest data index
         _oldest = (_youngest+1)%_size;
+        if (_oldest == 0) {
+            _filled = true;
+        }
+    }
+
+    inline bool is_filled(void) const {
+        return _filled;
     }
 
     // retrieve the oldest data from the ring buffer tail
@@ -187,4 +192,5 @@ public:
     }
 private:
     uint8_t _size,_oldest,_youngest;
+    bool _filled;
 };

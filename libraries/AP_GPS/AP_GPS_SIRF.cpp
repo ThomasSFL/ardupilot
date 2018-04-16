@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,7 +83,7 @@ AP_GPS_SIRF::read(void)
                 break;
             }
             _step = 0;
-        // FALLTHROUGH
+            FALLTHROUGH;
         case 0:
             if(PREAMBLE1 == data)
                 _step++;
@@ -138,7 +137,7 @@ AP_GPS_SIRF::read(void)
         case 5:
             if (_gather) {                                              // gather data if requested
                 _accumulate(data);
-                _buffer.bytes[_payload_counter] = data;
+                _buffer[_payload_counter] = data;
                 if (++_payload_counter == _payload_length)
                     _step++;
             } else {
@@ -205,48 +204,49 @@ AP_GPS_SIRF::_accumulate(uint8_t val)
 /*
   detect a SIRF GPS
  */
-bool
-AP_GPS_SIRF::_detect(struct SIRF_detect_state &state, uint8_t data)
+bool AP_GPS_SIRF::_detect(struct SIRF_detect_state &state, uint8_t data)
 {
-	switch (state.step) {
-	case 1:
-		if (PREAMBLE2 == data) {
-			state.step++;
-			break;
-		}
-		state.step = 0;
-	case 0:
-		state.payload_length = state.payload_counter = state.checksum = 0;
-		if (PREAMBLE1 == data)
-			state.step++;
-		break;
-	case 2:
-		state.step++;
-		if (data != 0) {
-			// only look for short messages
-			state.step = 0;
-		}
-		break;
-	case 3:
-		state.step++;
-		state.payload_length = data;
-		break;
-	case 4:
-		state.checksum = (state.checksum + data) & 0x7fff;
-		if (++state.payload_counter == state.payload_length)
-			state.step++;
-		break;
-	case 5:
-		state.step++;
-		if ((state.checksum >> 8) != data) {
-			state.step = 0;
-		}
-		break;
-	case 6:
-		state.step = 0;
-		if ((state.checksum & 0xff) == data) {
-			return true;
-		}
+    switch (state.step) {
+    case 1:
+        if (PREAMBLE2 == data) {
+            state.step++;
+            break;
+        }
+        state.step = 0;
+        FALLTHROUGH;
+    case 0:
+        state.payload_length = state.payload_counter = state.checksum = 0;
+        if (PREAMBLE1 == data)
+            state.step++;
+        break;
+    case 2:
+        state.step++;
+        if (data != 0) {
+            // only look for short messages
+            state.step = 0;
+        }
+        break;
+    case 3:
+        state.step++;
+        state.payload_length = data;
+        break;
+    case 4:
+        state.checksum = (state.checksum + data) & 0x7fff;
+        if (++state.payload_counter == state.payload_length) {
+            state.step++;
+        }
+        break;
+    case 5:
+        state.step++;
+        if ((state.checksum >> 8) != data) {
+            state.step = 0;
+        }
+        break;
+    case 6:
+        state.step = 0;
+        if ((state.checksum & 0xff) == data) {
+            return true;
+        }
     }
     return false;
 }

@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #include "AP_Mount_SToRM32.h"
 #include <AP_HAL/AP_HAL.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
@@ -63,7 +61,7 @@ void AP_Mount_SToRM32::update()
 
         // point mount to a GPS point given by the mission planner
         case MAV_MOUNT_MODE_GPS_POINT:
-            if(_frontend._ahrs.get_gps().status() >= AP_GPS::GPS_OK_FIX_2D) {
+            if(AP::gps().status() >= AP_GPS::GPS_OK_FIX_2D) {
                 calc_angle_to_location(_state._roi_target, _angle_ef_target_rad, true, true);
                 resend_now = true;
             }
@@ -133,7 +131,7 @@ void AP_Mount_SToRM32::send_do_mount_control(float pitch_deg, float roll_deg, fl
     }
 
     // check we have space for the message
-    if (comm_get_txspace(_chan) < MAVLINK_NUM_NON_PAYLOAD_BYTES+MAVLINK_MSG_ID_COMMAND_LONG_LEN) {
+    if (!HAVE_PAYLOAD_SPACE(_chan, COMMAND_LONG)) {
         return;
     }
 

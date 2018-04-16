@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
  * Copyright (C) 2015  Intel Corporation. All rights reserved.
  *
@@ -15,22 +14,20 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <AP_HAL/AP_HAL.h>
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-
 #include "RCOutput_Sysfs.h"
 
 #include <AP_Common/AP_Common.h>
+#include <AP_HAL/AP_HAL.h>
 #include <AP_Math/AP_Math.h>
 
 namespace Linux {
 
-RCOutput_Sysfs::RCOutput_Sysfs(uint8_t chip, uint8_t channel_count)
+RCOutput_Sysfs::RCOutput_Sysfs(uint8_t chip, uint8_t channel_base, uint8_t channel_count)
     : _chip(chip)
+    , _channel_base(channel_base)
     , _channel_count(channel_count)
-    , _pwm_channels(new PWM_Sysfs *[_channel_count])
+    , _pwm_channels(new PWM_Sysfs_Base *[_channel_count])
+    , _pending(new uint16_t[_channel_count])
 {
 }
 
@@ -40,16 +37,23 @@ RCOutput_Sysfs::~RCOutput_Sysfs()
         delete _pwm_channels[i];
     }
 
-    delete _pwm_channels;
+    delete [] _pwm_channels;
 }
 
 void RCOutput_Sysfs::init()
 {
     for (uint8_t i = 0; i < _channel_count; i++) {
-        _pwm_channels[i] = new PWM_Sysfs(_chip, i);
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_DISCO
+        _pwm_channels[i] = new PWM_Sysfs_Bebop(_channel_base+i);
+#elif CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_RST_ZYNQ
+        _pwm_channels[i] = new PWM_Sysfs(_chip+i, 0);
+#else
+        _pwm_channels[i] = new PWM_Sysfs(_chip, _channel_base+i);
+#endif
         if (!_pwm_channels[i]) {
             AP_HAL::panic("RCOutput_Sysfs_PWM: Unable to setup PWM pin.");
         }
+        _pwm_channels[i]->init();
         _pwm_channels[i]->enable(false);
 
         /* Set the initial frequency */
@@ -100,14 +104,18 @@ void RCOutput_Sysfs::write(uint8_t ch, uint16_t period_us)
     if (ch >= _channel_count) {
         return;
     }
-
-    _pwm_channels[ch]->set_duty_cycle(usec_to_nsec(period_us));
+    if (_corked) {
+        _pending[ch] = period_us;
+        _pending_mask |= (1U<<ch);
+    } else {
+        _pwm_channels[ch]->set_duty_cycle(usec_to_nsec(period_us));
+    }
 }
 
 uint16_t RCOutput_Sysfs::read(uint8_t ch)
 {
     if (ch >= _channel_count) {
-        return 0;
+        return 1000;
     }
 
     return nsec_to_usec(_pwm_channels[ch]->get_duty_cycle());
@@ -115,10 +123,32 @@ uint16_t RCOutput_Sysfs::read(uint8_t ch)
 
 void RCOutput_Sysfs::read(uint16_t *period_us, uint8_t len)
 {
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < MIN(len, _channel_count); i++) {
         period_us[i] = read(i);
     }
-}
+    for (int i = _channel_count; i < len; i++) {
+        period_us[i] = 1000;
+    }
 }
 
-#endif
+void RCOutput_Sysfs::cork(void)
+{
+    _corked = true;
+}
+
+void RCOutput_Sysfs::push(void)
+{
+    if (!_corked) {
+        return;
+    }
+    for (uint8_t i=0; i<_channel_count; i++) {
+        if ((1U<<i) & _pending_mask) {
+            _pwm_channels[i]->set_duty_cycle(usec_to_nsec(_pending[i]));
+        }
+    }
+    _pending_mask = 0;
+    _corked = false;
+}
+    
+}
+    

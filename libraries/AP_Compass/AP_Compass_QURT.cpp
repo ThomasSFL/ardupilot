@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,12 +34,12 @@ AP_Compass_QURT::AP_Compass_QURT(Compass &compass):
 AP_Compass_Backend *AP_Compass_QURT::detect(Compass &compass)
 {
     AP_Compass_QURT *sensor = new AP_Compass_QURT(compass);
-    if (sensor == NULL) {
-        return NULL;
+    if (sensor == nullptr) {
+        return nullptr;
     }
     if (!sensor->init()) {
         delete sensor;
-        return NULL;
+        return nullptr;
     }
     return sensor;
 }
@@ -73,8 +72,6 @@ void AP_Compass_QURT::timer_update(void)
         return;
     }
 
-    last_timestamp = data.timestamp;
-    
     Vector3f raw_field(data.mag_raw[0],
                        data.mag_raw[1],
                        -data.mag_raw[2]);
@@ -83,7 +80,7 @@ void AP_Compass_QURT::timer_update(void)
     rotate_field(raw_field, instance);
 
     // publish raw_field (uncorrected point sample) for calibration use
-    publish_raw_field(raw_field, data.timestamp, instance);
+    publish_raw_field(raw_field, instance);
 
     // correct raw_field for known errors
     correct_field(raw_field, instance);

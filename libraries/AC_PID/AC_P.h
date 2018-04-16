@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 #pragma once
 
 /// @file	AC_PD.h
@@ -21,8 +20,7 @@ public:
     ///
     /// @param  initial_p       Initial value for the P term.
     ///
-    AC_P(
-        const float &   initial_p = 0.0f)
+    AC_P(const float &initial_p = 0.0f)
     {
 		AP_Param::setup_object_defaults(this, var_info);
         _kp = initial_p;
@@ -58,6 +56,7 @@ public:
 
     // accessors
     AP_Float    &kP() { return _kp; }
+    const AP_Float &kP() const { return _kp; }
     void        kP(const float v) { _kp.set(v); }
 
     static const struct AP_Param::GroupInfo        var_info[];

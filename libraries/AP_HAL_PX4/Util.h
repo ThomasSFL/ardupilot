@@ -4,13 +4,13 @@
 #include "AP_HAL_PX4_Namespace.h"
 #include "Semaphores.h"
 
-class PX4::NSHShellStream : public AP_HAL::Stream {
+class PX4::NSHShellStream : public AP_HAL::BetterStream {
 public:
     size_t write(uint8_t);
     size_t write(const uint8_t *buffer, size_t size);
-    int16_t read();
-    int16_t available();
-    int16_t txspace();
+    int16_t read() override;
+    uint32_t available() override;
+    uint32_t txspace() override;
 private:
     int shell_stdin = -1;
     int shell_stdout = -1;
@@ -49,7 +49,7 @@ public:
     /*
       return a stream for access to nsh shell
      */
-    AP_HAL::Stream *get_shell_stream() { return &_shell_stream; }
+    AP_HAL::BetterStream *get_shell_stream() { return &_shell_stream; }
     perf_counter_t perf_alloc(perf_counter_type t, const char *name) override;
     void perf_begin(perf_counter_t ) override;
     void perf_end(perf_counter_t) override;
@@ -58,7 +58,23 @@ public:
     // create a new semaphore
     AP_HAL::Semaphore *new_semaphore(void) override { return new PX4::Semaphore; }
 
+    void set_imu_temp(float current) override;
+    void set_imu_target_temp(int8_t *target) override;
+
+    // allocate and free DMA-capable memory if possible. Otherwise return normal memory
+    void *malloc_type(size_t size, AP_HAL::Util::Memory_Type mem_type) override;
+    void free_type(void *ptr, size_t size, AP_HAL::Util::Memory_Type mem_type) override;
+
 private:
     int _safety_handle;
     PX4::NSHShellStream _shell_stream;
+
+    struct {
+        int8_t *target;
+        float integrator;
+        uint16_t count;
+        float sum;
+        uint32_t last_update_ms;
+        int fd = -1;
+    } _heater;
 };

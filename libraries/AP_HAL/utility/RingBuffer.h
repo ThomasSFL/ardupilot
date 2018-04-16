@@ -1,30 +1,10 @@
 #pragma once
 
+#include <atomic>
 #include <stdint.h>
-#include <stdbool.h>
-
 
 /*
-  old style ring buffer handling macros
-
-  These macros assume a ring buffer like this:
-
-    uint8_t *_buf;
-    uint16_t _buf_size;
-    volatile uint16_t _buf_head;
-    volatile uint16_t _buf_tail;
-
-  These should be converted to a class in future
- */
-#define BUF_AVAILABLE(buf) ((buf##_head > (_tail=buf##_tail))? (buf##_size - buf##_head) + _tail: _tail - buf##_head)
-#define BUF_SPACE(buf) (((_head=buf##_head) > buf##_tail)?(_head - buf##_tail) - 1:((buf##_size - buf##_tail) + _head) - 1)
-#define BUF_EMPTY(buf) (buf##_head == buf##_tail)
-#define BUF_ADVANCETAIL(buf, n) buf##_tail = (buf##_tail + n) % buf##_size
-#define BUF_ADVANCEHEAD(buf, n) buf##_head = (buf##_head + n) % buf##_size
-
-
-/*
-  new style buffers
+ * Circular buffer of bytes.
  */
 class ByteBuffer {
 public:
@@ -33,6 +13,9 @@ public:
 
     // number of bytes available to be read
     uint32_t available(void) const;
+
+    // Discards the buffer content, emptying it.
+    void clear(void);
 
     // number of bytes space available to write
     uint32_t space(void) const;
@@ -46,19 +29,25 @@ public:
     // read bytes from ringbuffer. Returns number of bytes read
     uint32_t read(uint8_t *data, uint32_t len);
 
+    // read a byte from ring buffer. Returns true on success, false otherwise
+    bool read_byte(uint8_t *data);
+
     /*
       update bytes at the read pointer. Used to update an object without
       popping it
     */
     bool update(const uint8_t *data, uint32_t len);
-    
+
     // return size of ringbuffer
     uint32_t get_size(void) const { return size; }
+
+    // set size of ringbuffer, caller responsible for locking
+    bool set_size(uint32_t size);
 
     // advance the read pointer (discarding bytes)
     bool advance(uint32_t n);
 
-    // return a pointer to the next available data
+    // Returns the pointer and size to a contiguous read of the next available data
     const uint8_t *readptr(uint32_t &available_bytes);
 
     // peek one byte without advancing read pointer. Return byte
@@ -69,15 +58,37 @@ public:
       read len bytes without advancing the read pointer
     */
     uint32_t peekbytes(uint8_t *data, uint32_t len);
-    
-private:
-    uint8_t *buf = nullptr;
-    uint32_t size = 0;
 
-    // head is where the next available data is. tail is where new
-    // data is written
-    volatile uint32_t head = 0;
-    volatile uint32_t tail = 0;
+    // Similar to peekbytes(), but will fill out IoVec struct with
+    // both parts of the ring buffer if wraparound is happening, or
+    // just one part. Returns the number of parts written to.
+    struct IoVec {
+        uint8_t *data;
+        uint32_t len;
+    };
+    uint8_t peekiovec(IoVec vec[2], uint32_t len);
+
+    // Reserve `len` bytes and fills out `vec` with both parts of the
+    // ring buffer (if wraparound is happening), or just one contiguous
+    // part. Returns the number of `vec` elements filled out. Can be used
+    // with system calls such as `readv()`.
+    //
+    // After a call to 'reserve()', 'write()' should never be called
+    // until 'commit()' is called!
+    uint8_t reserve(IoVec vec[2], uint32_t len);
+
+    /*
+     * "Releases" the memory previously reserved by 'reserve()' to be read.
+     * Committer must inform how many bytes were actually written in 'len'.
+     */
+    bool commit(uint32_t len);
+
+private:
+    uint8_t *buf;
+    uint32_t size;
+
+    std::atomic<uint32_t> head{0}; // where to read data
+    std::atomic<uint32_t> tail{0}; // where to write data
 };
 
 /*
@@ -91,6 +102,12 @@ public:
     }
     ~ObjectBuffer(void) {
         delete buffer;
+    }
+
+    // Discards the buffer content, emptying it.
+    void clear(void)
+    {
+        buffer->clear();
     }
 
     // return number of objects available to be read
@@ -115,7 +132,15 @@ public:
         }
         return buffer->write((uint8_t*)&object, sizeof(T)) == sizeof(T);
     }
-   
+
+    // push N objects
+    bool push(const T *object, uint32_t n) {
+        if (buffer->space() < n*sizeof(T)) {
+            return false;
+        }
+        return buffer->write((uint8_t*)object, n*sizeof(T)) == n*sizeof(T);
+    }
+    
     /*
       throw away an object
      */
@@ -133,7 +158,7 @@ public:
         return buffer->read((uint8_t*)&object, sizeof(T)) == sizeof(T);
     }
 
-    
+
     /*
      * push_force() is semantically equivalent to:
      *   if (!push(t)) { pop(); push(t); }
@@ -146,6 +171,17 @@ public:
     }
 
     /*
+     * push_force() N objects
+     */
+    bool push_force(const T *object, uint32_t n) {
+        uint32_t _space = buffer->space();
+        if (_space < sizeof(T)*n) {
+            buffer->advance(sizeof(T)*(n-_space));
+        }
+        return push(object, n);
+    }
+    
+    /*
       peek copies an object out without advancing the read pointer
      */
     bool peek(T &object) {
@@ -157,11 +193,11 @@ public:
     bool update(const T &object) {
         return buffer->update((uint8_t*)&object, sizeof(T));
     }
-    
+
 private:
     ByteBuffer *buffer = nullptr;
 };
-    
+
 
 
 /*
@@ -172,28 +208,33 @@ private:
 template <class T>
 class ObjectArray {
 public:
-    ObjectArray(uint16_t _size) {
-        size = _size;
-        head = count = 0;
-        buffer = new T[size];
+    ObjectArray(uint16_t size_) {
+        _size = size_;
+        _head = _count = 0;
+        _buffer = new T[_size];
     }
     ~ObjectArray(void) {
-        delete[] buffer;
+        delete[] _buffer;
+    }
+
+    // return total number of objects
+    uint16_t size(void) const {
+        return _size;
     }
 
     // return number of objects available to be read
     uint16_t available(void) const {
-        return count;
+        return _count;
     }
 
     // return number of objects that could be written
     uint16_t space(void) const {
-        return size - count;
+        return _size - _count;
     }
 
     // true is available() == 0
     bool empty(void) const {
-        return count == 0;
+        return _count == 0;
     }
 
     // push one object
@@ -201,11 +242,11 @@ public:
         if (space() == 0) {
             return false;
         }
-        buffer[(head+count)%size] = object;
-        count++;
+        _buffer[(_head+_count)%_size] = object;
+        _count++;
         return true;
     }
-   
+
     /*
       throw away an object
      */
@@ -213,9 +254,15 @@ public:
         if (empty()) {
             return false;
         }
-        head = (head+1) % size;
-        count--;
+        _head = (_head+1) % _size;
+        _count--;
         return true;
+    }
+
+    // Discards the buffer content, emptying it.
+    void clear(void)
+    {
+        _head = _count = 0;
     }
 
     /*
@@ -225,11 +272,11 @@ public:
         if (empty()) {
             return false;
         }
-        object = buffer[head];
+        object = _buffer[_head];
         return pop();
     }
 
-    
+
     /*
      * push_force() is semantically equivalent to:
      *   if (!push(t)) { pop(); push(t); }
@@ -245,12 +292,12 @@ public:
       remove the Nth element from the array. First element is zero
      */
     bool remove(uint16_t n) {
-        if (n >= count) {
+        if (n >= _count) {
             return false;
         }
-        if (n == count-1) {
+        if (n == _count-1) {
             // remove last element
-            count--;
+            _count--;
             return true;
         }
         if (n == 0) {
@@ -258,26 +305,25 @@ public:
             return pop();
         }
         // take advantage of the [] operator for simple shift of the array elements
-        for (uint16_t i=n; i<count-1; i++) {
+        for (uint16_t i=n; i<_count-1; i++) {
             *(*this)[i] = *(*this)[i+1];
         }
-        count--;
+        _count--;
         return true;
     }
-    
+
     // allow array indexing, based on current head. Returns a pointer
-    // to the object or NULL
+    // to the object or nullptr
     T * operator[](uint16_t i) {
-        if (i >= count) {
+        if (i >= _count) {
             return nullptr;
         }
-        return &buffer[(head+i)%size];
+        return &_buffer[(_head+i)%_size];
     }
-    
+
 private:
-    T *buffer;
-    uint16_t size;  // total buffer size
-    uint16_t count; // number in buffer now
-    uint16_t head;  // first element
+    T *_buffer;
+    uint16_t _size;  // total buffer size
+    uint16_t _count; // number in buffer now
+    uint16_t _head;  // first element
 };
-    

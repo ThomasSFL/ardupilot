@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #include "Copter.h"
 
 // read_inertia - read inertia in from accelerometers
@@ -18,7 +16,7 @@ void Copter::read_inertia()
     }
 
     // without home return alt above the EKF origin
-    if (ap.home_state == HOME_UNSET) {
+    if (!ahrs.home_is_set()) {
         // with inertial nav we can update the altitude and climb rate at 50hz
         current_loc.alt = inertial_nav.get_altitude();
     } else {

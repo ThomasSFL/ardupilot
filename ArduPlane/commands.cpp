@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
  *  logic for dealing with the current command in the mission and home location
  */
@@ -10,16 +9,16 @@
  */
 void Plane::set_next_WP(const struct Location &loc)
 {
-    if (auto_state.next_wp_no_crosstrack) {
+    if (auto_state.next_wp_crosstrack) {
+        // copy the current WP into the OldWP slot
+        prev_WP_loc = next_WP_loc;
+        auto_state.crosstrack = true;
+    } else {
         // we should not try to cross-track for this waypoint
         prev_WP_loc = current_loc;
         // use cross-track for the next waypoint
-        auto_state.next_wp_no_crosstrack = false;
-        auto_state.no_crosstrack = true;
-    } else {
-        // copy the current WP into the OldWP slot
-        prev_WP_loc = next_WP_loc;
-        auto_state.no_crosstrack = false;
+        auto_state.next_wp_crosstrack = true;
+        auto_state.crosstrack = false;
     }
 
     // Load the next_WP slot
@@ -52,7 +51,7 @@ void Plane::set_next_WP(const struct Location &loc)
     // location as the previous waypoint, to prevent immediately
     // considering the waypoint complete
     if (location_passed_point(current_loc, prev_WP_loc, next_WP_loc)) {
-        gcs_send_text(MAV_SEVERITY_NOTICE, "Resetting previous waypoint");
+        gcs().send_text(MAV_SEVERITY_NOTICE, "Resetting previous waypoint");
         prev_WP_loc = current_loc;
     }
 
@@ -71,7 +70,7 @@ void Plane::set_next_WP(const struct Location &loc)
 
 void Plane::set_guided_WP(void)
 {
-    if (g.loiter_radius < 0 || guided_WP_loc.flags.loiter_ccw) {
+    if (aparm.loiter_radius < 0 || guided_WP_loc.flags.loiter_ccw) {
         loiter.direction = -1;
     } else {
         loiter.direction = 1;
@@ -89,15 +88,17 @@ void Plane::set_guided_WP(void)
     // -----------------------------------------------
     set_target_altitude_current();
 
-    update_flight_stage();
     setup_glide_slope();
     setup_turn_angle();
+
+    // disable crosstrack, head directly to the point
+    auto_state.crosstrack = false;
 
     // reset loiter start time.
     loiter.start_time_ms = 0;
 
     // start in non-VTOL mode
-    auto_state.vtol_mode = false;
+    auto_state.vtol_loiter = false;
     
     loiter_angle_reset();
 }
@@ -106,14 +107,12 @@ void Plane::set_guided_WP(void)
 // -------------------------------
 void Plane::init_home()
 {
-    gcs_send_text(MAV_SEVERITY_INFO, "Init HOME");
+    gcs().send_text(MAV_SEVERITY_INFO, "Init HOME");
 
     ahrs.set_home(gps.location());
-    home_is_set = HOME_SET_NOT_LOCKED;
+    ahrs.set_home_status(HOME_SET_NOT_LOCKED);
     Log_Write_Home_And_Origin();
-    GCS_MAVLINK::send_home_all(gps.location());
-
-    gcs_send_text_fmt(MAV_SEVERITY_INFO, "GPS alt: %lu", (unsigned long)home.alt);
+    gcs().send_home(gps.location());
 
     // Save Home to EEPROM
     mission.write_home_to_storage();
@@ -130,10 +129,48 @@ void Plane::init_home()
 */
 void Plane::update_home()
 {
-    if (home_is_set == HOME_SET_NOT_LOCKED) {
-        ahrs.set_home(gps.location());
-        Log_Write_Home_And_Origin();
-        GCS_MAVLINK::send_home_all(gps.location());
+    if ((g2.home_reset_threshold == -1) ||
+        ((g2.home_reset_threshold > 0) &&
+         (fabsf(barometer.get_altitude()) > g2.home_reset_threshold))) {
+        // don't auto-update if we have changed barometer altitude
+        // significantly. This allows us to cope with slow baro drift
+        // but not re-do home and the baro if we have changed height
+        // significantly
+        return;
+    }
+    if (ahrs.home_status() == HOME_SET_NOT_LOCKED) {
+        Location loc;
+        if(ahrs.get_position(loc)) {
+            ahrs.set_home(loc);
+            Log_Write_Home_And_Origin();
+            gcs().send_home(loc);
+        }
     }
     barometer.update_calibration();
+}
+
+// sets ekf_origin if it has not been set.
+//  should only be used when there is no GPS to provide an absolute position
+void Plane::set_ekf_origin(const Location& loc)
+{
+    // check location is valid
+    if (!check_latlng(loc)) {
+        return;
+    }
+
+    // check if EKF origin has already been set
+    Location ekf_origin;
+    if (ahrs.get_origin(ekf_origin)) {
+        return;
+    }
+
+    if (!ahrs.set_origin(loc)) {
+        return;
+    }
+
+    // log ahrs home and ekf origin dataflash
+    Log_Write_Home_And_Origin();
+
+    // send ekf origin to GCS
+    gcs().send_ekf_origin(loc);
 }

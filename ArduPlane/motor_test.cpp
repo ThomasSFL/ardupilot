@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #include "Plane.h"
 
 /*
@@ -48,7 +46,7 @@ void QuadPlane::motor_test_output()
     case MOTOR_TEST_THROTTLE_PERCENT:
         // sanity check motor_test.throttle value
         if (motor_test.throttle_value <= 100) {
-            pwm = plane.channel_throttle->get_radio_min() + (plane.channel_throttle->get_radio_max()  - plane.channel_throttle->get_radio_min()) * (float)motor_test.throttle_value/100.0f;
+            pwm = thr_min_pwm + (thr_max_pwm - thr_min_pwm) * (float)motor_test.throttle_value*0.01f;
         }
         break;
 
@@ -57,7 +55,7 @@ void QuadPlane::motor_test_output()
         break;
 
     case MOTOR_TEST_THROTTLE_PILOT:
-        pwm = plane.channel_throttle->get_radio_in();
+        pwm = thr_min_pwm + (thr_max_pwm - thr_min_pwm) * (float)plane.channel_throttle->get_control_in()*0.01f;
         break;
 
     default:
@@ -76,11 +74,11 @@ void QuadPlane::motor_test_output()
 
 // mavlink_motor_test_start - start motor test - spin a single motor at a specified pwm
 //  returns MAV_RESULT_ACCEPTED on success, MAV_RESULT_FAILED on failure
-uint8_t QuadPlane::mavlink_motor_test_start(mavlink_channel_t chan, uint8_t motor_seq, uint8_t throttle_type,
+MAV_RESULT QuadPlane::mavlink_motor_test_start(mavlink_channel_t chan, uint8_t motor_seq, uint8_t throttle_type,
                                             uint16_t throttle_value, float timeout_sec, uint8_t motor_count)
 {
     if (motors->armed()) {
-        plane.gcs_send_text(MAV_SEVERITY_INFO, "Must be disarmed for motor test");
+        gcs().send_text(MAV_SEVERITY_INFO, "Must be disarmed for motor test");
         return MAV_RESULT_FAILED;
     }
     // if test has not started try to start it

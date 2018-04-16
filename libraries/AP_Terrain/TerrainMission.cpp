@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,7 +47,7 @@ void AP_Terrain::update_mission_data(void)
 
     uint16_t pending, loaded;
     get_statistics(pending, loaded);
-    if (pending && ahrs.get_gps().status() >= AP_GPS::GPS_OK_FIX_3D) {
+    if (pending && AP::gps().status() >= AP_GPS::GPS_OK_FIX_3D) {
         // wait till we have fully filled the current set of grids
         return;
     }
@@ -125,7 +124,7 @@ void AP_Terrain::update_rally_data(void)
 
     uint16_t pending, loaded;
     get_statistics(pending, loaded);
-    if (pending && ahrs.get_gps().status() >= AP_GPS::GPS_OK_FIX_3D) {
+    if (pending && AP::gps().status() >= AP_GPS::GPS_OK_FIX_3D) {
         // wait till we have fully filled the current set of grids
         return;
     }

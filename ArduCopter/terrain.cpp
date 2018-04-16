@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #include "Copter.h"
 
 // update terrain data
@@ -10,10 +8,10 @@ void Copter::terrain_update()
 
     // tell the rangefinder our height, so it can go into power saving
     // mode if available
-#if CONFIG_SONAR == ENABLED
+#if RANGEFINDER_ENABLED == ENABLED
     float height;
     if (terrain.height_above_terrain(height, true)) {
-        sonar.set_estimated_terrain_height(height);
+        rangefinder.set_estimated_terrain_height(height);
     }
 #endif
 #endif

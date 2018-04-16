@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,6 +35,7 @@ private:
     int _fd = -1;
     int _logfd = -1;
     uint64_t _last_timestamp = 0;
+    uint32_t _resolution_usec = 1;
 
     ModeFilterFloat_Size5 signal_quality_filter {3};
 };

@@ -1,6 +1,8 @@
 #include <AP_HAL/AP_HAL.h>
 
-#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO2
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_NAVIO2 || \
+    CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_EDGE
+
 #include <cstdio>
 #include <unistd.h>
 #include <fcntl.h>
@@ -65,7 +67,7 @@ int RCInput_Navio2::open_channel(int channel)
         AP_HAL::panic("[RCInput_Navio2]: not enough memory\n");
     }
 
-    int fd = ::open(channel_path, O_RDONLY);
+    int fd = ::open(channel_path, O_RDONLY|O_CLOEXEC);
 
     free(channel_path);
 

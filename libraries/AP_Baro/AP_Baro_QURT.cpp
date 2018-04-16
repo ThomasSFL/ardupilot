@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,12 +12,12 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "AP_Baro_QURT.h"
-
-#include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_QURT
+#include "AP_Baro_QURT.h"
+
+#include <AP_Common/AP_Common.h>
 
 extern const AP_HAL::HAL &hal;
 

@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /// @file    AP_Mission.h
 /// @brief   Handles the MAVLINK command mission stack.  Reads and writes mission to storage.
 
@@ -7,7 +5,7 @@
  *   The AP_Mission library:
  *   - responsible for managing a list of commands made up of "nav", "do" and "conditional" commands
  *   - reads and writes the mission commands to storage.
- *   - provides easy acces to current, previous and upcoming waypoints
+ *   - provides easy access to current, previous and upcoming waypoints
  *   - calls main program's command execution and verify functions.
  *   - accounts for the DO_JUMP command
  *
@@ -38,6 +36,9 @@
 #define AP_MISSION_FIRST_REAL_COMMAND       1       // command #0 reserved to hold home position
 
 #define AP_MISSION_RESTART_DEFAULT          0       // resume the mission from the last command run by default
+
+#define AP_MISSION_OPTIONS_DEFAULT          0       // Do not clear the mission when rebooting
+#define AP_MISSION_MASK_MISSION_CLEAR       (1<<0)  // If set then Clear the mission on boot
 
 /// @class    AP_Mission
 /// @brief    Object managing Mission
@@ -161,6 +162,36 @@ public:
         uint8_t target_state;
     };
 
+     // navigation delay command structure
+    struct PACKED Navigation_Delay_Command {
+        float seconds; // period of delay in seconds
+        int8_t hour_utc; // absolute time's hour (utc)
+        int8_t min_utc; // absolute time's min (utc)
+        int8_t sec_utc; // absolute time's sec (utc)
+    };
+
+    // DO_ENGINE_CONTROL support
+    struct PACKED Do_Engine_Control {
+        bool start_control; // start or stop engine
+        bool cold_start; // use cold start procedure
+        uint16_t height_delay_cm; // height delay for start
+    };
+
+    // NAV_SET_YAW_SPEED support
+    struct PACKED Set_Yaw_Speed {
+        float angle_deg;        // target angle in degrees (0=north, 90=east)
+        float speed;            // speed in meters/second
+        uint8_t relative_angle; // 0 = absolute angle, 1 = relative angle
+    };
+
+    // winch command structure
+    struct PACKED Winch_Command {
+        uint8_t num;            // winch number
+        uint8_t action;         // action (0 = relax, 1 = length control, 2 = rate control)
+        float release_length;   // cable distance to unwind in meters, negative numbers to wind in cable
+        float release_rate;     // release rate in meters/second
+    };
+
     union PACKED Content {
         // jump structure
         Jump_Command jump;
@@ -212,7 +243,19 @@ public:
 
         // do vtol transition
         Do_VTOL_Transition do_vtol_transition;
-        
+
+        // DO_ENGINE_CONTROL
+        Do_Engine_Control do_engine_control;
+
+        // navigation delay
+        Navigation_Delay_Command nav_delay;
+
+        // navigation delay
+        Set_Yaw_Speed set_yaw_speed;
+
+        // do-winch
+        Winch_Command winch;
+
         // location
         Location location;      // Waypoint location
 
@@ -227,25 +270,23 @@ public:
         uint16_t id;                // mavlink command id
         uint16_t p1;                // general purpose parameter 1
         Content content;
+
+        // return a human-readable interpretation of the ID stored in this command
+        const char *type() const;
     };
+
 
     // main program function pointers
     FUNCTOR_TYPEDEF(mission_cmd_fn_t, bool, const Mission_Command&);
     FUNCTOR_TYPEDEF(mission_complete_fn_t, void);
 
-    // mission state enumeration
-    enum mission_state {
-        MISSION_STOPPED=0,
-        MISSION_RUNNING=1,
-        MISSION_COMPLETE=2
-    };
-
-    /// constructor
+    // constructor
     AP_Mission(AP_AHRS &ahrs, mission_cmd_fn_t cmd_start_fn, mission_cmd_fn_t cmd_verify_fn, mission_complete_fn_t mission_complete_fn) :
         _ahrs(ahrs),
         _cmd_start_fn(cmd_start_fn),
         _cmd_verify_fn(cmd_verify_fn),
         _mission_complete_fn(mission_complete_fn),
+        _prev_nav_cmd_id(AP_MISSION_CMD_ID_NONE),
         _prev_nav_cmd_index(AP_MISSION_CMD_INDEX_NONE),
         _prev_nav_cmd_wp_index(AP_MISSION_CMD_INDEX_NONE),
         _last_change_time_ms(0)
@@ -263,6 +304,17 @@ public:
         _flags.do_cmd_loaded = false;
     }
 
+    /* Do not allow copies */
+    AP_Mission(const AP_Mission &other) = delete;
+    AP_Mission &operator=(const AP_Mission&) = delete;    
+    
+    // mission state enumeration
+    enum mission_state {
+        MISSION_STOPPED=0,
+        MISSION_RUNNING=1,
+        MISSION_COMPLETE=2
+    };
+
     ///
     /// public mission methods
     ///
@@ -274,6 +326,7 @@ public:
     mission_state state() const { return _flags.state; }
 
     /// num_commands - returns total number of commands in the mission
+    ///                 this number includes offset 0, the home location
     uint16_t num_commands() const { return _cmd_total; }
 
     /// num_commands_max - returns maximum number of commands that can be stored
@@ -292,6 +345,9 @@ public:
 
     /// start_or_resume - if MIS_AUTORESTART=0 this will call resume(), otherwise it will call start()
     void start_or_resume();
+
+    /// check mission starts with a takeoff command
+    bool starts_with_takeoff_cmd();
 
     /// reset - reset mission to the first command
     void reset();
@@ -332,6 +388,11 @@ public:
     /// used in MAVLink reporting of the mission command
     uint16_t get_current_nav_index() const { 
         return _nav_cmd.index==AP_MISSION_CMD_INDEX_NONE?0:_nav_cmd.index; }
+
+    /// get_prev_nav_cmd_id - returns the previous "navigation" command id
+    ///     if there was no previous nav command it returns AP_MISSION_CMD_ID_NONE
+    ///     we do not return the entire command to save on RAM
+    uint16_t get_prev_nav_cmd_id() const { return _prev_nav_cmd_id; }
 
     /// get_prev_nav_cmd_index - returns the previous "navigation" commands index (i.e. position in the mission command list)
     ///     if there was no previous nav command it returns AP_MISSION_CMD_INDEX_NONE
@@ -393,6 +454,11 @@ public:
     // return its index.  Returns 0 if no appropriate DO_LAND_START point can
     // be found.
     uint16_t get_landing_sequence_start();
+
+    // find the nearest landing sequence starting point (DO_LAND_START) and
+    // switch to that mission item.  Returns false if no DO_LAND_START
+    // available.
+    bool jump_to_landing_sequence(void);
 
     // user settable parameters
     static const struct AP_Param::GroupInfo var_info[];
@@ -460,6 +526,7 @@ private:
     // parameters
     AP_Int16                _cmd_total;  // total number of commands in the mission
     AP_Int8                 _restart;   // controls mission starting point when entering Auto mode (either restart from beginning of mission or resume from last command run)
+    AP_Int16                _options;    // bitmask options for missions, currently for mission clearing on reboot but can be expanded as required
 
     // pointer to main program functions
     mission_cmd_fn_t        _cmd_start_fn;  // pointer to function which will be called when a new command is started
@@ -469,6 +536,7 @@ private:
     // internal variables
     struct Mission_Command  _nav_cmd;   // current "navigation" command.  It's position in the command list is held in _nav_cmd.index
     struct Mission_Command  _do_cmd;    // current "do" command.  It's position in the command list is held in _do_cmd.index
+    uint16_t                _prev_nav_cmd_id;       // id of the previous "navigation" command. (WAYPOINT, LOITER_TO_ALT, ect etc)
     uint16_t                _prev_nav_cmd_index;    // index of the previous "navigation" command.  Rarely used which is why we don't store the whole command
     uint16_t                _prev_nav_cmd_wp_index; // index of the previous "navigation" command that contains a waypoint.  Rarely used which is why we don't store the whole command
 

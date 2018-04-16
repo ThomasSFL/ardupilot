@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,7 +27,7 @@ const AP_Param::GroupInfo AP_PitchController::var_info[] = {
 	// @DisplayName: Pitch Time Constant
 	// @Description: This controls the time constant in seconds from demanded to achieved pitch angle. A value of 0.5 is a good default and will work with nearly all models. Advanced users may want to reduce this time to obtain a faster response but there is no point setting a time less than the aircraft can achieve.
 	// @Range: 0.4 1.0
-	// @Units: seconds
+	// @Units: s
 	// @Increment: 0.1
 	// @User: Advanced
 	AP_GROUPINFO("TCONST",      0, AP_PitchController, gains.tau,       0.5f),
@@ -61,7 +60,7 @@ const AP_Param::GroupInfo AP_PitchController::var_info[] = {
 	// @DisplayName: Pitch up max rate
 	// @Description: This sets the maximum nose up pitch rate that the controller will demand (degrees/sec). Setting it to zero disables the limit.
 	// @Range: 0 100
-	// @Units: degrees/second
+	// @Units: deg/s
 	// @Increment: 1
 	// @User: Advanced
 	AP_GROUPINFO("RMAX_UP",     4, AP_PitchController, gains.rmax,   0.0f),
@@ -70,7 +69,7 @@ const AP_Param::GroupInfo AP_PitchController::var_info[] = {
 	// @DisplayName: Pitch down max rate
 	// @Description: This sets the maximum nose down pitch rate that the controller will demand (degrees/sec). Setting it to zero disables the limit.
 	// @Range: 0 100
-	// @Units: degrees/second
+	// @Units: deg/s
 	// @Increment: 1
 	// @User: Advanced
 	AP_GROUPINFO("RMAX_DN",     5, AP_PitchController, _max_rate_neg,   0.0f),
@@ -201,7 +200,27 @@ int32_t AP_PitchController::_get_rate_out(float desired_rate, float scaler, bool
     }
 
 	_last_out += _pid_info.I;
-	
+
+    /*
+      when we are past the users defined roll limit for the
+      aircraft our priority should be to bring the aircraft back
+      within the roll limit. Using elevator for pitch control at
+      large roll angles is ineffective, and can be counter
+      productive as it induces earth-frame yaw which can reduce
+      the ability to roll. We linearly reduce elevator input when
+      beyond the configured roll limit, reducing to zero at 90
+      degrees
+    */
+    float roll_wrapped = fabsf(_ahrs.roll_sensor);
+    if (roll_wrapped > 9000) {
+        roll_wrapped = 18000 - roll_wrapped;
+    }
+    if (roll_wrapped > aparm.roll_limit_cd + 500 && aparm.roll_limit_cd < 8500 &&
+        labs(_ahrs.pitch_sensor) < 7000) {
+        float roll_prop = (roll_wrapped - (aparm.roll_limit_cd+500)) / (float)(9000 - aparm.roll_limit_cd);
+        _last_out *= (1 - roll_prop);
+    }
+    
 	// Convert to centi-degrees and constrain
 	return constrain_float(_last_out * 100, -4500, 4500);
 }

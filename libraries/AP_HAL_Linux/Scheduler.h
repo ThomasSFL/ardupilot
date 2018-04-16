@@ -10,7 +10,13 @@
 #define LINUX_SCHEDULER_MAX_TIMESLICED_PROCS 10
 #define LINUX_SCHEDULER_MAX_IO_PROCS 10
 
-class Linux::Scheduler : public AP_HAL::Scheduler {
+#define AP_LINUX_SENSORS_STACK_SIZE  256 * 1024
+#define AP_LINUX_SENSORS_SCHED_POLICY  SCHED_FIFO
+#define AP_LINUX_SENSORS_SCHED_PRIO 12
+
+namespace Linux {
+
+class Scheduler : public AP_HAL::Scheduler {
 public:
     Scheduler();
 
@@ -25,12 +31,11 @@ public:
                 uint16_t min_time_ms);
 
     void     register_timer_process(AP_HAL::MemberProc);
-    bool     register_timer_process(AP_HAL::MemberProc, uint8_t);
     void     register_io_process(AP_HAL::MemberProc);
     void     suspend_timer_procs();
     void     resume_timer_procs();
 
-    bool     in_timerprocess();
+    bool     in_main_thread() const override;
 
     void     register_timer_failsafe(AP_HAL::Proc, uint32_t period_us);
 
@@ -43,6 +48,8 @@ public:
     uint64_t stopped_clock_usec() const { return _stopped_clock_usec; }
 
     void microsleep(uint32_t usec);
+
+    void teardown();
 
 private:
     class SchedulerThread : public PeriodicThread {
@@ -60,6 +67,8 @@ private:
 
     void _wait_all_threads();
 
+    void     _debug_stack();
+
     AP_HAL::Proc _delay_cb;
     uint16_t _min_delay_cb_ms;
 
@@ -71,16 +80,6 @@ private:
     AP_HAL::MemberProc _timer_proc[LINUX_SCHEDULER_MAX_TIMER_PROCS];
     uint8_t _num_timer_procs;
     volatile bool _in_timer_proc;
-    uint8_t _timeslices_count;
-
-    struct timesliced_proc {
-        AP_HAL::MemberProc proc;
-        uint8_t timeslot;
-        uint8_t freq_div;
-    };
-    timesliced_proc _timesliced_proc[LINUX_SCHEDULER_MAX_TIMESLICED_PROCS];
-    uint8_t _num_timesliced_procs;
-    uint8_t _max_freq_div;
 
     AP_HAL::MemberProc _io_proc[LINUX_SCHEDULER_MAX_IO_PROCS];
     uint8_t _num_io_procs;
@@ -99,10 +98,13 @@ private:
 
     void _run_io();
     void _run_uarts();
-    bool _register_timesliced_proc(AP_HAL::MemberProc, uint8_t);
 
     uint64_t _stopped_clock_usec;
+    uint64_t _last_stack_debug_msec;
+    pthread_t _main_ctx;
 
     Semaphore _timer_semaphore;
     Semaphore _io_semaphore;
 };
+
+}

@@ -19,10 +19,17 @@
 
 #include <AP_HAL/AP_HAL.h>
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
+#ifndef BUZZER_PIN
+// better to define it in hal
+ #if CONFIG_HAL_BOARD == HAL_BOARD_VRBRAIN
  # define BUZZER_PIN    32
-#else
- # define BUZZER_PIN    0       // pin undefined on other boards
+ #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BBBMINI
+ # define BUZZER_PIN     11 // GPIO P8_32
+ #elif CONFIG_HAL_BOARD == HAL_BOARD_LINUX && CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_POCKET
+ # define BUZZER_PIN     28 // GPIO P2_8
+// #else
+// # define BUZZER_PIN     -1 // pin undefined on other boards
+ #endif
 #endif
 
 #define BUZZER_ARMING_BUZZ_MS   3000    // arming buzz length in milliseconds (i.e. 3 seconds)
@@ -49,6 +56,7 @@ public:
     /// on - turns the buzzer on or off
     void on(bool on_off);
 
+    // Patterns - how many beeps will be played
     enum BuzzerPattern {
         NONE = 0,
         SINGLE_BUZZ = 1,
@@ -70,11 +78,12 @@ private:
         uint8_t arming              : 1;    // 1 if we are beginning the arming process
         uint8_t armed               : 1;    // 0 = disarmed, 1 = armed
         uint8_t failsafe_battery    : 1;    // 1 if battery failsafe has triggered
-        uint8_t ekf_bad            : 1;    // 1 if ekf position has gone bad
+        uint8_t ekf_bad             : 1;    // 1 if ekf position has gone bad
     } _flags;
 
     uint8_t         _counter;           // reduces 50hz update down to 10hz for internal processing
     BuzzerPattern   _pattern;           // current pattern
     uint8_t         _pattern_counter;   // used to time on/off of current patter
     uint32_t        _arming_buzz_start_ms;  // arming_buzz start time in milliseconds
+    uint8_t         _pin;
 };

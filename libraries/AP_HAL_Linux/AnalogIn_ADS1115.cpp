@@ -1,7 +1,3 @@
-#include <AP_HAL/AP_HAL.h>
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-
 #include "AnalogIn_ADS1115.h"
 
 AnalogSource_ADS1115::AnalogSource_ADS1115(int16_t pin):
@@ -54,14 +50,14 @@ AnalogIn_ADS1115::AnalogIn_ADS1115()
 AP_HAL::AnalogSource* AnalogIn_ADS1115::channel(int16_t pin)
 {
     for (uint8_t j = 0; j < _channels_number; j++) {
-        if (_channels[j] == NULL) {
+        if (_channels[j] == nullptr) {
             _channels[j] = new AnalogSource_ADS1115(pin);
             return _channels[j];
         }
     }
 
-    hal.console->println("Out of analog channels");
-    return NULL;
+    hal.console->printf("Out of analog channels\n");
+    return nullptr;
 }
 
 void AnalogIn_ADS1115::init()
@@ -87,7 +83,7 @@ void AnalogIn_ADS1115::_update()
         for (uint8_t j=0; j < rc; j++) {
             AnalogSource_ADS1115 *source = _channels[j];
 
-            if (source != NULL && reports[i].id == source->_pin) {
+            if (source != nullptr && reports[i].id == source->_pin) {
                 source->_value = reports[i].data / 1000;
             }
         }
@@ -95,5 +91,3 @@ void AnalogIn_ADS1115::_update()
 
     _last_update_timestamp = AP_HAL::micros();
 }
-
-#endif

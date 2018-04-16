@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -51,6 +50,8 @@
 ///
 class AP_GPS_NMEA : public AP_GPS_Backend
 {
+    friend class AP_GPS_NMEA_Test;
+
 public:
 	AP_GPS_NMEA(AP_GPS &_gps, AP_GPS::GPS_State &_state, AP_HAL::UARTDriver *_port);
 
@@ -60,6 +61,8 @@ public:
     bool        read();
 
 	static bool _detect(struct NMEA_detect_state &state, uint8_t data);
+
+    const char *name() const override { return "NMEA"; }
 
 private:
     /// Coding for the GPS sentences that the parser handles
@@ -85,13 +88,13 @@ private:
     ///
     int16_t                     _from_hex(char a);
 
-    /// Parses the current term as a NMEA-style decimal number with
-    /// up to two decimal digits.
+    /// Parses the @p as a NMEA-style decimal number with
+    /// up to 3 decimal digits.
     ///
-    /// @returns		The value expressed by the string in _term,
+    /// @returns		The value expressed by the string in @p,
     ///					multiplied by 100.
     ///
-    uint32_t    _parse_decimal_100();
+    static int32_t _parse_decimal_100(const char *p);
 
     /// Parses the current term as a NMEA-style degrees + minutes
     /// value with up to four decimal digits.
@@ -136,6 +139,7 @@ private:
     int32_t _new_course;                                        ///< course parsed from a term
     uint16_t _new_hdop;                                                 ///< HDOP parsed from a term
     uint8_t _new_satellite_count;                       ///< satellite count parsed from a term
+    uint8_t _new_quality_indicator;                                     ///< GPS quality indicator parsed from a term
 
     uint32_t _last_RMC_ms = 0;
     uint32_t _last_GGA_ms = 0;

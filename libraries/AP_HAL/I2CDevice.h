@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
  * Copyright (C) 2015-2016  Intel Corporation. All rights reserved.
  *
@@ -27,16 +26,9 @@ namespace AP_HAL {
 
 class I2CDevice : public Device {
 public:
+    I2CDevice() : Device(BUS_TYPE_I2C) { }
+
     virtual ~I2CDevice() { }
-
-    /*
-     * Change device address. Note that this is the 7 bit address, it
-     * does not include the bit for read/write.
-     */
-    virtual void set_address(uint8_t address) = 0;
-
-    /* set number of retries on transfers */
-    virtual void set_retries(uint8_t retries) = 0;
 
     /* Device implementation */
 
@@ -58,17 +50,31 @@ public:
     virtual Semaphore *get_semaphore() override = 0;
 
     /* See Device::register_periodic_callback() */
-    virtual Device::PeriodicHandle *register_periodic_callback(
-        uint32_t period_usec, MemberProc) override = 0;
+    virtual Device::PeriodicHandle register_periodic_callback(
+        uint32_t period_usec, Device::PeriodicCb) override = 0;
 
-    /* See Device::get_fd() */
-    virtual int get_fd() override = 0;
+    /* See Device::adjust_periodic_callback() */
+    virtual bool adjust_periodic_callback(
+        Device::PeriodicHandle h, uint32_t period_usec) override = 0;
+
+    /*
+     * Force I2C transfers to be split between send and receive parts, with a
+     * stop condition between them. Setting this allows to conveniently
+     * continue using the read_* and transfer() methods on those devices.
+     *
+     * Some platforms may have transfers always split, in which case
+     * this method is not needed.
+     */
+    virtual void set_split_transfers(bool set) {};
 };
 
 class I2CDeviceManager {
 public:
     /* Get a device handle */
-    virtual OwnPtr<AP_HAL::I2CDevice> get_device(uint8_t bus, uint8_t address) = 0;
+    virtual OwnPtr<AP_HAL::I2CDevice> get_device(uint8_t bus, uint8_t address,
+                                                 uint32_t bus_clock=400000,
+                                                 bool use_smbus = false,
+                                                 uint32_t timeout_ms=4) = 0;
 };
 
 }

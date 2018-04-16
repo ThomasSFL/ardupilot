@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 //
 // C++ runtime support not provided by Arduino
 //
@@ -38,23 +36,3 @@ void operator delete[](void * ptr)
 {
     if (ptr) free(ptr);
 }
-
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_FLYMAPLE
-
-__extension__ typedef int __guard __attribute__((mode (__DI__)));
-
-int __cxa_guard_acquire(__guard *g)
-{
-    return !*(char *)(g);
-};
-
-void __cxa_guard_release (__guard *g){
-    *(char *)g = 1;
-};
-
-void __cxa_guard_abort (__guard *) {
-};
-
-#endif // CONFIG_HAL_BOARD
-

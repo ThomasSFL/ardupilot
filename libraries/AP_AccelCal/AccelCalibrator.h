@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -133,7 +132,7 @@ private:
     // determines if the result is acceptable
     bool accept_result() const;
 
-    // returns number of paramters are required for selected Fit type
+    // returns number of parameters are required for selected Fit type
     uint8_t get_num_params() const;
 
     // Function related to Gauss Newton Least square regression process

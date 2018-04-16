@@ -5,20 +5,23 @@
   logic doing the edge detection of the PPM sum input
  */
 
-#include "AP_HAL_Linux.h"
+#include "RCInput.h"
 
-// FIXME A puppie dies when you hard code an address
-#define RCIN_ZYNQ_PULSE_INPUT_BASE  0x43c10000
+namespace Linux {
 
-class Linux::RCInput_ZYNQ : public Linux::RCInput
-{
+class RCInput_ZYNQ : public RCInput {
 public:
     void init();
     void _timer_tick(void);
 
- private:
+private:
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_OCPOC_ZYNQ
+    static const int TICK_PER_US=50;
+    static const int TICK_PER_S=50000000;
+#else
     static const int TICK_PER_US=100;
     static const int TICK_PER_S=100000000;
+#endif
 
     // Memory mapped keyhole register to pulse input FIFO
     volatile uint32_t *pulse_input;
@@ -26,3 +29,5 @@ public:
     // time spent in the low state
     uint32_t _s0_time;
 };
+
+}

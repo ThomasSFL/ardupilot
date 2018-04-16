@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /// @file	PID.cpp
 /// @brief	Generic PID algorithm
 
@@ -57,7 +55,8 @@ float PID::get_pid(float error, float scaler)
     delta_time = (float)dt / 1000.0f;
 
     // Compute proportional component
-    output += error * _kp;
+    _pid_info.P = error * _kp;
+    output += _pid_info.P;
 
     // Compute derivative component if time has elapsed
     if ((fabsf(_kd) > 0) && (dt > 0)) {
@@ -85,11 +84,14 @@ float PID::get_pid(float error, float scaler)
         _last_derivative    = derivative;
 
         // add in derivative component
-        output                          += _kd * derivative;
+        _pid_info.D = _kd * derivative;
+        output                          += _pid_info.D;
     }
 
     // scale the P and D components
     output *= scaler;
+    _pid_info.D *= scaler;
+    _pid_info.P *= scaler;
 
     // Compute integral component if time has elapsed
     if ((fabsf(_ki) > 0) && (dt > 0)) {
@@ -99,16 +101,12 @@ float PID::get_pid(float error, float scaler)
         } else if (_integrator > _imax) {
             _integrator = _imax;
         }
+        _pid_info.I = _integrator;
         output                          += _integrator;
     }
 
+    _pid_info.desired = output;
     return output;
-}
-
-int16_t PID::get_pid_4500(float error, float scaler)
-{
-	float v = get_pid(error, scaler);
-	return constrain_float(v, -4500, 4500);
 }
 
 void
@@ -118,6 +116,12 @@ PID::reset_I()
 	// we use NAN (Not A Number) to indicate that the last 
 	// derivative value is not valid
     _last_derivative = NAN;
+    _pid_info.I = 0;
+}
+
+void PID::reset() {
+    memset(&_pid_info, 0, sizeof(_pid_info));
+    reset_I();
 }
 
 void

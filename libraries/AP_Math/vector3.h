@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,7 +41,7 @@
 * scalar triple product: a*(b%c) = c*(a%b) = b*(c%a)
 * vector quadruple product: (a%b)*(c%d) = (a*c)*(b*d) - (a*d)*(b*c)
 * if a is unit vector along b then a%b = -b%a = -b(cast to matrix)*a = 0
-* vectors a1...an are linearly dependant if there exists a vector of scalars (b) where a1*b1 + ... + an*bn = 0
+* vectors a1...an are linearly dependent if there exists a vector of scalars (b) where a1*b1 + ... + an*bn = 0
 *           or if the matrix (A) * b = 0
 *
 ****************************************/
@@ -68,13 +67,16 @@ public:
     T        x, y, z;
 
     // trivial ctor
-    Vector3<T>() {
-        x = y = z = 0;
-    }
+    constexpr Vector3<T>()
+        : x(0)
+        , y(0)
+        , z(0) {}
 
     // setting ctor
-    Vector3<T>(const T x0, const T y0, const T z0) : x(x0), y(y0), z(z0) {
-    }
+    constexpr Vector3<T>(const T x0, const T y0, const T z0)
+        : x(x0)
+        , y(y0)
+        , z(z0) {}
 
     // function call operator
     void operator ()(const T x0, const T y0, const T z0)
@@ -208,6 +210,32 @@ public:
         return v * (*this * v)/(v*v);
     }
 
+    // distance from the tip of this vector to another vector squared (so as to avoid the sqrt calculation)
+    float distance_squared(const Vector3<T> &v) const {
+        float dist_x = x-v.x;
+        float dist_y = y-v.y;
+        float dist_z = z-v.z;
+        return (dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
+    }
+
+    // distance from the tip of this vector to a line segment specified by two vectors
+    float distance_to_segment(const Vector3<T> &seg_start, const Vector3<T> &seg_end) const;
+
+    // given a position p1 and a velocity v1 produce a vector
+    // perpendicular to v1 maximising distance from p1.  If p1 is the
+    // zero vector the return from the function will always be the
+    // zero vector - that should be checked for.
+    static Vector3<T> perpendicular(const Vector3<T> &p1, const Vector3<T> &v1)
+    {
+        T d = p1 * v1;
+        if (fabsf(d) < FLT_EPSILON) {
+            return p1;
+        }
+        Vector3<T> parallel = (v1 * d) / v1.length_squared();
+        Vector3<T> perpendicular = p1 - parallel;
+
+        return perpendicular;
+    }
 
 };
 

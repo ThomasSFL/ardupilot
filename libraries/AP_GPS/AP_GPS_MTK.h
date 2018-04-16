@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,6 +36,8 @@ public:
     static bool _detect(struct MTK_detect_state &state, uint8_t data);
     static void send_init_blob(uint8_t instance, AP_GPS &gps);
 
+    const char *name() const override { return "MTK"; }
+
 private:
     struct PACKED diyd_mtk_msg {
         int32_t latitude;
@@ -71,8 +72,8 @@ private:
 
     // Receive buffer
     union PACKED {
+        DEFINE_BYTE_ARRAY_METHODS
         diyd_mtk_msg msg;
-        uint8_t bytes[];
     } _buffer;
 
     // Buffer parse & GPS state update

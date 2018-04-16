@@ -1,23 +1,25 @@
 #!/usr/bin/env python
 
-'''
+"""
 Extract version information for the various vehicle types, print it
-'''
+"""
 
-import sys
-import re
 import os
+import re
+import sys
 
 from optparse import OptionParser
+
 parser = OptionParser("print_version.py [options] ArduCopter|ArduPlane|APMrover2|AntennaTracker")
 
 (opts, args) = parser.parse_args()
 
 includefiles = {
-    "ArduCopter": "Copter.h",
-    "ArduPlane": "Plane.h",
-    "APMrover2": "Rover.h",
-    "AntennaTracker": "Tracker.h",
+    "ArduCopter": "version.h",
+    "ArduPlane": "version.h",
+    "APMrover2": "version.h",
+    "AntennaTracker": "version.h",
+    "ArduSub": "version.h",
 }
 
 if len(args) > 0:
@@ -25,7 +27,7 @@ if len(args) > 0:
     if vehicle not in includefiles:
         print("Unknown vehicle (%s) (be in a vehicle directory or supply a vehicle type as an argument)" % (vehicle,))
         sys.exit(1)
-    includefilepath="%s/%s" % (vehicle, includefiles[vehicle])
+    includefilepath = "%s/%s" % (vehicle, includefiles[vehicle])
 else:
     # assume we are in e.g. APM/APMrover2/
     vehicle = os.path.basename(os.getcwd())

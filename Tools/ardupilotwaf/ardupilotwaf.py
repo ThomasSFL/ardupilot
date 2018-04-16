@@ -2,19 +2,19 @@
 # encoding: utf-8
 
 from __future__ import print_function
-from waflib import Logs, Options, Utils
-from waflib.Build import BuildContext
+from waflib import Build, Logs, Options, Utils
 from waflib.Configure import conf
+from waflib.TaskGen import before_method, feature
 import os.path, os
 from collections import OrderedDict
+
+import ap_persistent
 
 SOURCE_EXTS = [
     '*.S',
     '*.c',
     '*.cpp',
 ]
-
-UTILITY_SOURCE_EXTS = [ 'utility/' + glob for glob in SOURCE_EXTS ]
 
 COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_AccelCal',
@@ -34,8 +34,8 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_InertialSensor',
     'AP_Math',
     'AP_Mission',
-    'AP_NavEKF',
     'AP_NavEKF2',
+    'AP_NavEKF3',
     'AP_Notify',
     'AP_OpticalFlow',
     'AP_Param',
@@ -49,14 +49,31 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'Filter',
     'GCS_MAVLink',
     'RC_Channel',
+    'SRV_Channel',
     'StorageManager',
     'AP_Tuning',
     'AP_RPM',
     'AP_RSSI',
     'AP_Mount',
+    'AP_Module',
+    'AP_Button',
+    'AP_ICEngine',
+    'AP_Frsky_Telem',
+    'AP_FlashStorage',
+    'AP_Relay',
+    'AP_ServoRelayEvents',
+    'AP_Volz_Protocol',
+    'AP_SBusOut',
+    'AP_IOMCU',
+    'AP_RAMTRON',
+    'AP_RCProtocol',
+    'AP_Radio',
+    'AP_TempCalibration',
+    'AP_VisualOdom',
+    'AP_BLHeli',
 ]
 
-def _get_legacy_defines(sketch_name):
+def get_legacy_defines(sketch_name):
     return [
         'APM_BUILD_DIRECTORY=APM_BUILD_' + sketch_name,
         'SKETCH="' + sketch_name + '"',
@@ -65,13 +82,12 @@ def _get_legacy_defines(sketch_name):
 
 IGNORED_AP_LIBRARIES = [
     'doc',
-    'GCS_Console',
 ]
 
 @conf
 def ap_get_all_libraries(bld):
     libraries = []
-    for lib_node in bld.srcnode.ant_glob('libraries/*', dir=True):
+    for lib_node in bld.srcnode.ant_glob('libraries/*', dir=True, src=False):
         name = lib_node.name
         if name in IGNORED_AP_LIBRARIES:
             continue
@@ -85,7 +101,15 @@ def ap_get_all_libraries(bld):
 
 @conf
 def ap_common_vehicle_libraries(bld):
-    return COMMON_VEHICLE_DEPENDENT_LIBRARIES
+    libraries = COMMON_VEHICLE_DEPENDENT_LIBRARIES
+
+    if bld.env.DEST_BINFMT == 'pe':
+        libraries += [
+            'AP_Proximity',
+            'AC_Fence',
+        ]
+
+    return libraries
 
 _grouped_programs = {}
 
@@ -107,7 +131,7 @@ def ap_program(bld,
         program_name = bld.path.name
 
     if use_legacy_defines:
-        kw['defines'].extend(_get_legacy_defines(bld.path.name))
+        kw['defines'].extend(get_legacy_defines(bld.path.name))
 
     kw['cxxflags'] = kw.get('cxxflags', []) + ['-include', 'ap_config.h']
     kw['features'] = kw.get('features', []) + bld.env.AP_PROGRAM_FEATURES
@@ -143,17 +167,6 @@ def ap_example(bld, **kw):
     kw['program_groups'] = 'examples'
     ap_program(bld, use_legacy_defines=False, **kw)
 
-# NOTE: Code in libraries/ is compiled multiple times. So ensure each
-# compilation is independent by providing different index for each.
-# The need for this should disappear when libraries change to be
-# independent of vehicle type.
-LAST_IDX = 0
-
-def _get_next_idx():
-    global LAST_IDX
-    LAST_IDX += 1
-    return LAST_IDX
-
 def unique_list(items):
     '''remove duplicate elements from a list while maintaining ordering'''
     return list(OrderedDict.fromkeys(items))
@@ -162,29 +175,38 @@ def unique_list(items):
 def ap_stlib(bld, **kw):
     if 'name' not in kw:
         bld.fatal('Missing name for ap_stlib')
-    if 'vehicle' not in kw:
-        bld.fatal('Missing vehicle for ap_stlib')
-    if 'libraries' not in kw:
-        bld.fatal('Missing libraries for ap_stlib')
+    if 'ap_vehicle' not in kw:
+        bld.fatal('Missing ap_vehicle for ap_stlib')
+    if 'ap_libraries' not in kw:
+        bld.fatal('Missing ap_libraries for ap_stlib')
 
-    sources = []
-    libraries = unique_list(kw['libraries'] + bld.env.AP_LIBRARIES)
+    kw['ap_libraries'] = unique_list(kw['ap_libraries'] + bld.env.AP_LIBRARIES)
+    for l in kw['ap_libraries']:
+        bld.ap_library(l, kw['ap_vehicle'])
 
-    for lib_name in libraries:
-        lib_node = bld.srcnode.find_dir('libraries/' + lib_name)
-        if lib_node is None:
-            bld.fatal('Could not find library ' + lib_name)
-        lib_sources = lib_node.ant_glob(SOURCE_EXTS + UTILITY_SOURCE_EXTS)
-        sources.extend(lib_sources)
-
-    kw['cxxflags'] = kw.get('cxxflags', []) + ['-include', 'ap_config.h']
-    kw['features'] = kw.get('features', []) + bld.env.AP_STLIB_FEATURES
-    kw['source'] = sources
+    kw['features'] = kw.get('features', []) + ['cxx', 'cxxstlib']
     kw['target'] = kw['name']
-    kw['defines'] = _get_legacy_defines(kw['vehicle'])
-    kw['idx'] = _get_next_idx()
+    kw['source'] = []
 
     bld.stlib(**kw)
+
+_created_program_dirs = set()
+@feature('cxxstlib', 'cxxprogram')
+@before_method('process_rule')
+def ap_create_program_dir(self):
+    if not hasattr(self, 'program_dir'):
+        return
+    if self.program_dir in _created_program_dirs:
+        return
+    self.bld.bldnode.make_node(self.program_dir).mkdir()
+    _created_program_dirs.add(self.program_dir)
+
+@feature('cxxstlib')
+@before_method('process_rule')
+def ap_stlib_target(self):
+    if self.target.startswith('#'):
+        self.target = self.target[1:]
+    self.target = '#%s' % os.path.join('lib', self.target)
 
 @conf
 def ap_find_tests(bld, use=[]):
@@ -220,9 +242,21 @@ def ap_version_append_str(ctx, k, v):
     ctx.env['AP_VERSION_ITEMS'] += [(k, '"{}"'.format(os.environ.get(k, v)))]
 
 @conf
+def ap_version_append_int(ctx, k, v):
+    ctx.env['AP_VERSION_ITEMS'] += [(k,v)]
+
+@conf
 def write_version_header(ctx, tgt):
     with open(tgt, 'w') as f:
-        print('#pragma once\n', file=f)
+        print(
+'''// auto-generated header, do not edit
+
+#pragma once
+
+#ifndef FORCE_VERSION_H_INCLUDE
+#error ap_version.h should never be included directly. You probably want to include AP_Common/AP_FWVersion.h
+#endif
+''', file=f)
 
         for k, v in ctx.env['AP_VERSION_ITEMS']:
             print('#define {} {}'.format(k, v), file=f)
@@ -317,7 +351,7 @@ def build_command(name,
         program_group_list=program_group_list,
     )
 
-    class context_class(BuildContext):
+    class context_class(Build.BuildContext):
         cmd = name
     context_class.__doc__ = doc
 
@@ -346,33 +380,50 @@ def _select_programs_from_group(bld):
             bld.targets += ',' + tg.name
 
 def options(opt):
+    opt.ap_groups = {
+        'configure': opt.add_option_group('Ardupilot configure options'),
+        'build': opt.add_option_group('Ardupilot build options'),
+        'check': opt.add_option_group('Ardupilot check options'),
+        'clean': opt.add_option_group('Ardupilot clean options'),
+    }
+
     g = opt.ap_groups['build']
+
     g.add_option('--program-group',
         action='append',
         default=[],
-        help='Select all programs that go in <PROGRAM_GROUP>/ for the ' +
-             'build. Example: `waf --program-group examples` builds all ' +
-             'examples. The special group "all" selects all programs.',
-    )
+        help='''
+Select all programs that go in <PROGRAM_GROUP>/ for the build. Example: `waf
+--program-group examples` builds all examples. The special group "all" selects
+all programs.
+''')
 
     g.add_option('--upload',
         action='store_true',
-        help='Upload applicable targets to a connected device. Not all ' +
-             'platforms may support this. Example: `waf copter --upload` ' +
-             'means "build arducopter and upload it to my board".',
-    )
+        help='''
+Upload applicable targets to a connected device. Not all platforms may support
+this. Example: `waf copter --upload` means "build arducopter and upload it to
+my board".
+''')
 
     g = opt.ap_groups['check']
-    g.add_option('--check-verbose',
-                 action='store_true',
-                 help='Output all test programs')
 
+    g.add_option('--check-verbose',
+        action='store_true',
+        help='Output all test programs.')
+
+    g = opt.ap_groups['clean']
+
+    g.add_option('--clean-all-sigs',
+        action='store_true',
+        help='''
+Clean signatures for all tasks. By default, tasks that scan for implicit
+dependencies (like the compilation tasks) keep the dependency information
+across clean commands, so that that information is changed only when really
+necessary. Also, some tasks that don't really produce files persist their
+signature. This option avoids that behavior when cleaning the build.
+''')
 
 def build(bld):
-    global LAST_IDX
-    # FIXME: This is done to prevent same task generators being created with
-    # different idx when build() is called multiple times (e.g. waf bin tests).
-    # Ideally, task generators should be created just once.
-    LAST_IDX = 0
     bld.add_pre_fun(_process_build_command)
     bld.add_pre_fun(_select_programs_from_group)

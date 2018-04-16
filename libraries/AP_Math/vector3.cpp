@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
  * vector3.cpp
  * Copyright (C) Andrew Tridgell 2012
@@ -391,7 +390,33 @@ Matrix3<T> Vector3<T>::mul_rowcol(const Vector3<T> &v2) const
                       v1.z * v2.x, v1.z * v2.y, v1.z * v2.z);
 }
 
-// only define for float
+// distance from the tip of this vector to a line segment specified by two vectors
+template <typename T>
+float Vector3<T>::distance_to_segment(const Vector3<T> &seg_start, const Vector3<T> &seg_end) const
+{
+    // triangle side lengths
+    float a = (*this-seg_start).length();
+    float b = (seg_start-seg_end).length();
+    float c = (seg_end-*this).length();
+
+    // protect against divide by zero later
+    if (fabsf(b) < FLT_EPSILON) {
+        return 0.0f;
+    }
+
+    // semiperimeter of triangle
+    float s = (a+b+c) * 0.5f;
+
+    float area_squared = s*(s-a)*(s-b)*(s-c);
+    // area must be constrained above 0 because a triangle could have 3 points could be on a line and float rounding could push this under 0
+    if (area_squared < 0.0f) {
+        area_squared = 0.0f;
+    }
+    float area = safe_sqrt(area_squared);
+    return 2.0f*area/b;
+}
+
+// define for float
 template void Vector3<float>::rotate(enum Rotation);
 template void Vector3<float>::rotate_inverse(enum Rotation);
 template float Vector3<float>::length(void) const;
@@ -413,6 +438,10 @@ template bool Vector3<float>::operator !=(const Vector3<float> &v) const;
 template bool Vector3<float>::is_nan(void) const;
 template bool Vector3<float>::is_inf(void) const;
 template float Vector3<float>::angle(const Vector3<float> &v) const;
+template float Vector3<float>::distance_to_segment(const Vector3<float> &seg_start, const Vector3<float> &seg_end) const;
+
+// define needed ops for Vector3l
+template Vector3<int32_t> &Vector3<int32_t>::operator +=(const Vector3<int32_t> &v);
 
 template void Vector3<double>::rotate(enum Rotation);
 template void Vector3<double>::rotate_inverse(enum Rotation);
@@ -434,4 +463,3 @@ template bool Vector3<double>::operator ==(const Vector3<double> &v) const;
 template bool Vector3<double>::operator !=(const Vector3<double> &v) const;
 template bool Vector3<double>::is_nan(void) const;
 template bool Vector3<double>::is_inf(void) const;
-template float Vector3<double>::angle(const Vector3<double> &v) const;

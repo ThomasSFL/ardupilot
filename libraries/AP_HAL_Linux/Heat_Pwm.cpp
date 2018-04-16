@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,29 +15,40 @@
 
 #include <AP_HAL/AP_HAL.h>
 
-#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <linux/limits.h>
-#include <string.h>
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_BEBOP || \
+    CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_DISCO || \
+    CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_EDGE
+
 #include <cmath>
+#include <fcntl.h>
+#include <linux/limits.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 #include "Heat_Pwm.h"
+#include "GPIO.h"
 
 extern const AP_HAL::HAL& hal;
 
 using namespace Linux;
 
-HeatPwm::HeatPwm(uint8_t pwm_num, float Kp, float Ki, uint32_t period_ns, float target) :
+HeatPwm::HeatPwm(uint8_t pwm_num, float Kp, float Ki, uint32_t period_ns) :
     _Kp(Kp),
     _Ki(Ki),
-    _period_ns(period_ns),
-    _target(target)
+    _period_ns(period_ns)
 {
+#if CONFIG_HAL_BOARD_SUBTYPE == HAL_BOARD_SUBTYPE_LINUX_EDGE
+    _pwm = new PWM_Sysfs(0, pwm_num);
+    hal.gpio->pinMode(EDGE_GPIO_HEAT_ENABLE, HAL_GPIO_OUTPUT);
+    hal.gpio->write(EDGE_GPIO_HEAT_ENABLE, 1);
+#else
     _pwm = new PWM_Sysfs_Bebop(pwm_num);
+#endif
+    _pwm->init();
     _pwm->set_period(_period_ns);
     _pwm->set_duty_cycle(0);
     _pwm->enable(true);
@@ -48,12 +58,17 @@ void HeatPwm::set_imu_temp(float current)
 {
     float error, output;
 
+    if (_target == nullptr) {
+        // not configured
+        return;
+    }
+    
     if (AP_HAL::millis() - _last_temp_update < 5) {
         return;
     }
 
     /* minimal PI algo without dt */
-    error = _target - current;
+    error = ((float)*_target) - current;
     /* Don't accumulate errors if the integrated error is superior
      * to the max duty cycle(pwm_period)
      */
@@ -71,6 +86,12 @@ void HeatPwm::set_imu_temp(float current)
 
     _pwm->set_duty_cycle(output);
     _last_temp_update = AP_HAL::millis();
+    // printf("target %.1f current %.1f out %.2f\n", _target, current, output);
+}
+
+void HeatPwm::set_imu_target_temp(int8_t *target)
+{
+    _target = target;
 }
 
 #endif

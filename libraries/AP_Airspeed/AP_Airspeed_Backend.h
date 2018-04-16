@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,9 +20,13 @@
 
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
+#include "AP_Airspeed.h"
 
 class AP_Airspeed_Backend {
 public:
+    AP_Airspeed_Backend(AP_Airspeed &frontend, uint8_t instance);
+    virtual ~AP_Airspeed_Backend();
+    
     // probe and initialise the sensor
     virtual bool init(void) = 0;
 
@@ -33,4 +35,39 @@ public:
 
     // return the current temperature in degrees C, if available
     virtual bool get_temperature(float &temperature) = 0;
+
+protected:
+    int8_t get_pin(void) const;
+    float get_psi_range(void) const;
+    uint8_t get_bus(void) const;
+
+    AP_Airspeed::pitot_tube_order get_tube_order(void) const {
+        return AP_Airspeed::pitot_tube_order(frontend.param[instance].tube_order.get());
+    }
+    
+    // semaphore for access to shared frontend data
+    AP_HAL::Semaphore *sem;
+
+    float get_airspeed_ratio(void) const {
+        return frontend.get_airspeed_ratio(instance);
+    }
+
+    // some sensors use zero offsets
+    void set_use_zero_offset(void) {
+        frontend.state[instance].use_zero_offset = true;
+    }
+
+    // set to no zero cal, which makes sense for some sensors
+    void set_skip_cal(void) {
+        frontend.param[instance].skip_cal.set(1);
+    }
+
+    // set zero offset
+    void set_offset(float ofs) {
+        frontend.param[instance].offset.set(ofs);
+    }
+    
+private:
+    AP_Airspeed &frontend;
+    uint8_t instance;
 };

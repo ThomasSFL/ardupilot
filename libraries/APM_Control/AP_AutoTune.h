@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
@@ -91,7 +90,6 @@ private:
     void check_state_exit(uint32_t state_time_ms);
     void save_gains(const ATGains &v);
 
-    void write_log_headers(void);
     void write_log(float servo, float demanded, float achieved);
 
     void log_param_change(float v, const char *suffix);

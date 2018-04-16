@@ -8,6 +8,11 @@
 #include "vector2.h"
 #include "vector3.h"
 
+// scaling factor from 1e-7 degrees to meters at equator
+// == 1.0e-7 * DEG_TO_RAD * RADIUS_OF_EARTH
+#define LOCATION_SCALING_FACTOR 0.011131884502145034f
+// inverse of LOCATION_SCALING_FACTOR
+#define LOCATION_SCALING_FACTOR_INV 89.83204953368922f
 
 /*
  * LOCATION
@@ -22,8 +27,14 @@ float        get_distance(const struct Location &loc1, const struct Location &lo
 // return distance in centimeters between two locations
 uint32_t     get_distance_cm(const struct Location &loc1, const struct Location &loc2);
 
+// return horizontal distance in centimeters between two positions
+float        get_horizontal_distance_cm(const Vector3f &origin, const Vector3f &destination);
+
 // return bearing in centi-degrees between two locations
 int32_t      get_bearing_cd(const struct Location &loc1, const struct Location &loc2);
+
+// return bearing in centi-degrees between two positions
+float        get_bearing_cd(const Vector3f &origin, const Vector3f &destination);
 
 // see if location is past a line perpendicular to
 // the line between point1 and point2. If point1 is
@@ -55,6 +66,12 @@ void        location_offset(struct Location &loc, float ofs_north, float ofs_eas
 Vector2f    location_diff(const struct Location &loc1, const struct Location &loc2);
 
 /*
+  return the distance in meters in North/East/Down plane as a N/E/D vector
+  from loc1 to loc2
+ */
+Vector3f    location_3d_diff_NED(const struct Location &loc1, const struct Location &loc2);
+
+/*
  * check if lat and lng match. Ignore altitude and options
  */
 bool        locations_are_same(const struct Location &loc1, const struct Location &loc2);
@@ -78,4 +95,13 @@ void        wgsllh2ecef(const Vector3d &llh, Vector3d &ecef);
 // coordinates (X, Y, Z), into WHS84 geodetic
 // coordinates (lat, lon, height)
 void        wgsecef2llh(const Vector3d &ecef, Vector3d &llh);
+
+// return true when lat and lng are within range
+bool        check_lat(float lat);
+bool        check_lng(float lng);
+bool        check_lat(int32_t lat);
+bool        check_lng(int32_t lng);
+bool        check_latlng(float lat, float lng);
+bool        check_latlng(int32_t lat, int32_t lng);
+bool        check_latlng(Location loc);
 

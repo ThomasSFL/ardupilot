@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 #pragma once
 
 #include <AP_AHRS/AP_AHRS.h>
@@ -10,13 +9,17 @@
 
 class AP_RollController {
 public:
-	AP_RollController(AP_AHRS &ahrs, const AP_Vehicle::FixedWing &parms, DataFlash_Class &_dataflash) :
-		aparm(parms),
-        autotune(gains, AP_AutoTune::AUTOTUNE_ROLL, parms, _dataflash),
-        _ahrs(ahrs)
-    { 
-		AP_Param::setup_object_defaults(this, var_info);
-	}
+    AP_RollController(AP_AHRS &ahrs, const AP_Vehicle::FixedWing &parms, DataFlash_Class &_dataflash)
+        : aparm(parms)
+        , autotune(gains, AP_AutoTune::AUTOTUNE_ROLL, parms, _dataflash)
+        , _ahrs(ahrs)
+    {
+        AP_Param::setup_object_defaults(this, var_info);
+    }
+
+    /* Do not allow copies */
+    AP_RollController(const AP_RollController &other) = delete;
+    AP_RollController &operator=(const AP_RollController&) = delete;
 
 	int32_t get_rate_out(float desired_rate, float scaler);
 	int32_t get_servo_out(int32_t angle_err, float scaler, bool disable_integrator);
@@ -41,9 +44,9 @@ public:
     AP_Float &kI(void) { return gains.I; }
     AP_Float &kD(void) { return gains.D; }
     AP_Float &kFF(void) { return gains.FF; }
-    
+
 private:
-	const AP_Vehicle::FixedWing &aparm;
+    const AP_Vehicle::FixedWing &aparm;
     AP_AutoTune::ATGains gains;
     AP_AutoTune autotune;
 	uint32_t _last_t;

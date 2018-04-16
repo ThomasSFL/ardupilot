@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
@@ -47,9 +46,9 @@ public:
     }
 
     /* Implementations of Stream virtual methods */
-    int16_t available();
-    int16_t txspace();
-    int16_t read();
+    uint32_t available() override;
+    uint32_t txspace() override;
+    int16_t read() override;
 
     /* Implementations of Print virtual methods */
     size_t write(uint8_t c);
@@ -58,7 +57,13 @@ public:
     // file descriptor, exposed so SITL_State::loop_hook() can use it
     int _fd;
 
+    bool _unbuffered_writes;
+
     enum flow_control get_flow_control(void) { return FLOW_CONTROL_ENABLE; }
+
+    void configure_parity(uint8_t v) override;
+    void set_stop_bits(int n) override;
+    bool set_unbuffered_writes(bool on) override;
 
     void _timer_tick(void);
     
@@ -73,27 +78,20 @@ private:
     ByteBuffer _readbuffer{16384};
     ByteBuffer _writebuffer{16384};
 
+    const char *_uart_path;
+    uint32_t _uart_baudrate;
+
     // IPv4 address of target for uartC
     const char *_tcp_client_addr;
 
     void _tcp_start_connection(uint16_t port, bool wait_for_connection);
-    void _uart_start_connection(const char *path, uint32_t baudrate);
+    void _uart_start_connection(void);
+    void _check_reconnect();
     void _tcp_start_client(const char *address, uint16_t port);
     void _check_connection(void);
     static bool _select_check(int );
     static void _set_nonblocking(int );
-
-    /// default receive buffer size
-    static const uint16_t _default_rx_buffer_size = 128;
-
-    /// default transmit buffer size
-    static const uint16_t _default_tx_buffer_size = 16;
-
-    /// maxium tx/rx buffer size
-    /// @note if we could bring the max size down to 256, the mask and head/tail
-    ///       pointers in the buffer could become uint8_t.
-    ///
-    static const uint16_t _max_buffer_size = 512;
+    bool set_speed(int speed);
 
     SITL_State *_sitlState;
 

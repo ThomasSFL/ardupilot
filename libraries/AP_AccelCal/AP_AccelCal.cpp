@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,9 +17,10 @@
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AP_HAL/AP_HAL.h>
 
+#define AP_ACCELCAL_POSITION_REQUEST_INTERVAL_MS 1000
+
 const extern AP_HAL::HAL& hal;
 static bool _start_collect_sample;
-static void _snoop(const mavlink_message_t* msg);
 
 uint8_t AP_AccelCal::_num_clients = 0;
 AP_AccelCal_Client* AP_AccelCal::_clients[AP_ACCELCAL_MAX_NUM_CLIENTS] {};
@@ -46,8 +46,6 @@ void AP_AccelCal::update()
         }
         if(_start_collect_sample) {
             collect_sample();
-            _gcs->set_snoop(NULL);
-            _start_collect_sample = false;
         }
         switch(_status) {
             case ACCEL_CAL_NOT_STARTED:
@@ -56,7 +54,7 @@ void AP_AccelCal::update()
             case ACCEL_CAL_WAITING_FOR_ORIENTATION: {
                 // if we're waiting for orientation, first ensure that all calibrators are on the same step
                 uint8_t step;
-                if ((cal = get_calibrator(0)) == NULL) {
+                if ((cal = get_calibrator(0)) == nullptr) {
                     fail();
                     return;
                 }
@@ -72,34 +70,41 @@ void AP_AccelCal::update()
                 if (step != _step) {
                     _step = step;
 
-                    const char *msg;
-                    switch (step) {
-                        case 1:
-                            msg = "level";
-                            break;
-                        case 2:
-                            msg = "on its LEFT side";
-                            break;
-                        case 3:
-                            msg = "on its RIGHT side";
-                            break;
-                        case 4:
-                            msg = "nose DOWN";
-                            break;
-                        case 5:
-                            msg = "nose UP";
-                            break;
-                        case 6:
-                            msg = "on its BACK";
-                            break;
-                        default:
-                            fail();
-                            return;
+                    if(_use_gcs_snoop) {
+                        const char *msg;
+                        switch (step) {
+                            case ACCELCAL_VEHICLE_POS_LEVEL:
+                                msg = "level";
+                                break;
+                            case ACCELCAL_VEHICLE_POS_LEFT:
+                                msg = "on its LEFT side";
+                                break;
+                            case ACCELCAL_VEHICLE_POS_RIGHT:
+                                msg = "on its RIGHT side";
+                                break;
+                            case ACCELCAL_VEHICLE_POS_NOSEDOWN:
+                                msg = "nose DOWN";
+                                break;
+                            case ACCELCAL_VEHICLE_POS_NOSEUP:
+                                msg = "nose UP";
+                                break;
+                            case ACCELCAL_VEHICLE_POS_BACK:
+                                msg = "on its BACK";
+                                break;
+                            default:
+                                fail();
+                                return;
+                        }
+                        _printf("Place vehicle %s and press any key.", msg);
+                        _waiting_for_mavlink_ack = true;
                     }
-                    _printf("Place vehicle %s and press any key.", msg);
                 }
-                // setup snooping of packets so we can see the COMMAND_ACK
-                _gcs->set_snoop(_snoop);
+
+                uint32_t now = AP_HAL::millis();
+                if (now - _last_position_request_ms > AP_ACCELCAL_POSITION_REQUEST_INTERVAL_MS) {
+                    _last_position_request_ms = now;
+                    _gcs->send_accelcal_vehicle_position(step);
+                }
                 break;
             }
             case ACCEL_CAL_COLLECTING_SAMPLE:
@@ -149,12 +154,29 @@ void AP_AccelCal::update()
                 fail();
                 return;
         }
+    } else if (_last_result != ACCEL_CAL_NOT_STARTED) {
+        // only continuously report if we have ever completed a calibration
+        uint32_t now = AP_HAL::millis();
+        if (now - _last_position_request_ms > AP_ACCELCAL_POSITION_REQUEST_INTERVAL_MS) {
+            _last_position_request_ms = now;
+            switch (_last_result) {
+                case ACCEL_CAL_SUCCESS:
+                    _gcs->send_accelcal_vehicle_position(ACCELCAL_VEHICLE_POS_SUCCESS);
+                    break;
+                case ACCEL_CAL_FAILED:
+                    _gcs->send_accelcal_vehicle_position(ACCELCAL_VEHICLE_POS_FAILED);
+                    break;
+                default:
+                    // should never hit this state
+                    break;
+            }
+        }
     }
 }
 
 void AP_AccelCal::start(GCS_MAVLINK *gcs)
 {
-    if (gcs == NULL || _started) {
+    if (gcs == nullptr || _started) {
         return;
     }
     _start_collect_sample = false;
@@ -170,7 +192,11 @@ void AP_AccelCal::start(GCS_MAVLINK *gcs)
     _started = true;
     _saving = false;
     _gcs = gcs;
+    _use_gcs_snoop = true;
+    _last_position_request_ms = 0;
     _step = 0;
+
+    _last_result = ACCEL_CAL_NOT_STARTED;
 
     update_status();
 }
@@ -183,6 +209,8 @@ void AP_AccelCal::success()
         _clients[i]->_acal_event_success();
     }
 
+    _last_result = ACCEL_CAL_SUCCESS;
+
     clear();
 }
 
@@ -194,6 +222,8 @@ void AP_AccelCal::cancel()
         _clients[i]->_acal_event_cancellation();
     }
 
+    _last_result = ACCEL_CAL_NOT_STARTED;
+
     clear();
 }
 
@@ -204,6 +234,8 @@ void AP_AccelCal::fail()
     for(uint8_t i=0 ; i < _num_clients ; i++) {
         _clients[i]->_acal_event_failure();
     }
+
+    _last_result = ACCEL_CAL_FAILED;
 
     clear();
 }
@@ -218,8 +250,6 @@ void AP_AccelCal::clear()
     for(uint8_t i=0 ; (cal = get_calibrator(i))  ; i++) {
         cal->clear();
     }
-
-    _gcs = NULL;
 
     _step = 0;
     _started = false;
@@ -245,13 +275,12 @@ void AP_AccelCal::collect_sample()
     for(uint8_t i=0 ; (cal = get_calibrator(i))  ; i++) {
         cal->collect_sample();
     }
-    // setup snooping of packets so we can see the COMMAND_ACK
-    _gcs->set_snoop(NULL);
+    _start_collect_sample = false;
     update_status();
 }
 
 void AP_AccelCal::register_client(AP_AccelCal_Client* client) {
-    if (client == NULL || _num_clients >= AP_ACCELCAL_MAX_NUM_CLIENTS) {
+    if (client == nullptr || _num_clients >= AP_ACCELCAL_MAX_NUM_CLIENTS) {
         return;
     }
 
@@ -275,7 +304,7 @@ AccelCalibrator* AP_AccelCal::get_calibrator(uint8_t index) {
             index--;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void AP_AccelCal::update_status() {
@@ -324,11 +353,27 @@ bool AP_AccelCal::client_active(uint8_t client_num)
     return (bool)_clients[client_num]->_acal_get_calibrator(0);
 }
 
-static void _snoop(const mavlink_message_t* msg)
+void AP_AccelCal::handleMessage(const mavlink_message_t* msg)
 {
+    if (!_waiting_for_mavlink_ack) {
+        return;
+    }
+    _waiting_for_mavlink_ack = false;
     if (msg->msgid == MAVLINK_MSG_ID_COMMAND_ACK) {
         _start_collect_sample = true;
     }
+}
+
+bool AP_AccelCal::gcs_vehicle_position(float position)
+{
+    _use_gcs_snoop = false;
+
+    if (_status == ACCEL_CAL_WAITING_FOR_ORIENTATION && is_equal((float) _step, position)) {
+        _start_collect_sample = true;
+        return true;
+    }
+
+    return false;
 }
 
 void AP_AccelCal::_printf(const char* fmt, ...)

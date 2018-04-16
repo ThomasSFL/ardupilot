@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #pragma once
 
 #include <AP_Common/AP_Common.h>
@@ -45,6 +43,8 @@ private:
     AP_Int16 channel_max;
     AP_Int8 selector;
     AP_Float range;
+    AP_Int8 mode_revert;
+    AP_Float error_threshold;
 
     // when selector was triggered
     uint32_t selector_start_ms;
@@ -80,6 +80,9 @@ private:
     // last flight mode we were tuning in
     uint8_t last_flightmode;
 
+    // last time we reported controller error
+    uint32_t last_controller_error_ms;
+    
     const tuning_set *tuning_sets;
     const tuning_name *tuning_names;
     
@@ -89,6 +92,7 @@ private:
     void save_parameters(void);
     void revert_parameters(void);
     const char *get_tuning_name(uint8_t parm);
+    void check_controller_error(void);
 
 protected:
     // virtual functions that must be implemented in vehicle subclass
@@ -96,6 +100,7 @@ protected:
     virtual void save_value(uint8_t parm) = 0;
     virtual void reload_value(uint8_t parm) = 0;
     virtual void set_value(uint8_t parm, float value) = 0;
+    virtual float controller_error(uint8_t parm) = 0;
 
     // parmset is in vehicle subclass var table
     AP_Int16 parmset;

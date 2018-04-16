@@ -1,13 +1,11 @@
-#include <AP_HAL/AP_HAL.h>
-
-#if CONFIG_HAL_BOARD == HAL_BOARD_LINUX
-
-#include "AnalogIn_Navio2.h"
-
 #include <cstdio>
 #include <cstdlib>
 #include <errno.h>
 #include <unistd.h>
+
+#include <AP_HAL/AP_HAL.h>
+
+#include "AnalogIn_Navio2.h"
 
 static const AP_HAL::HAL &hal = AP_HAL::get_HAL();
 
@@ -29,7 +27,7 @@ void AnalogSource_Navio2::set_channel(uint8_t pin)
         ::close(_fd);
     }
 
-    _fd = ::open(channel_path, O_RDONLY);
+    _fd = ::open(channel_path, O_RDONLY|O_CLOEXEC);
 
     if (_fd < 0) {
         hal.console->printf("%s not opened: %s\n", channel_path, strerror(errno));
@@ -101,6 +99,7 @@ float AnalogIn_Navio2::board_voltage(void)
 {
     return _board_voltage_pin->voltage_average();
 }
+
 float AnalogIn_Navio2::servorail_voltage(void)
 {
     return _servorail_pin->voltage_average();
@@ -115,7 +114,7 @@ AP_HAL::AnalogSource *AnalogIn_Navio2::channel(int16_t pin)
         }
     }
 
-    hal.console->println("Out of analog channels");
+    hal.console->printf("Out of analog channels\n");
     return nullptr;
 }
 
@@ -124,5 +123,3 @@ void AnalogIn_Navio2::init()
     _board_voltage_pin = channel(0);
     _servorail_pin = channel(1);
 }
-
-#endif

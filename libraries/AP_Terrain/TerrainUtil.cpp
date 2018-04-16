@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,10 +27,12 @@
 
 #include <assert.h>
 #include <stdio.h>
+#if HAL_OS_POSIX_IO
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#endif
+#include <sys/types.h>
 #include <errno.h>
 
 extern const AP_HAL::HAL& hal;

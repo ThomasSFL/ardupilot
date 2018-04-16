@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +18,7 @@
 #include <AP_HAL/AP_HAL.h>
 #include <DataFlash/DataFlash.h>
 
-#if HAL_OS_POSIX_IO && defined(HAL_BOARD_TERRAIN_DIRECTORY)
+#if (HAL_OS_POSIX_IO || HAL_OS_FATFS_IO) && defined(HAL_BOARD_TERRAIN_DIRECTORY)
 #define AP_TERRAIN_AVAILABLE 1
 #else
 #define AP_TERRAIN_AVAILABLE 0
@@ -75,10 +74,13 @@
   file:        first entries increase east, then north
  */
 
-class AP_Terrain
-{
+class AP_Terrain {
 public:
     AP_Terrain(AP_AHRS &_ahrs, const AP_Mission &_mission, const AP_Rally &_rally);
+
+    /* Do not allow copies */
+    AP_Terrain(const AP_Terrain &other) = delete;
+    AP_Terrain &operator=(const AP_Terrain&) = delete;
 
     enum TerrainStatus {
         TerrainStatusDisabled  = 0, // not enabled
@@ -87,7 +89,7 @@ public:
     };
 
     static const struct AP_Param::GroupInfo var_info[];
-    
+
     // update terrain state. Should be called at 1Hz or more
     void update(void);
 
@@ -413,7 +415,7 @@ private:
     // grid spacing during rally check
     uint16_t last_rally_spacing;
 
-    char *file_path = NULL;    
+    char *file_path = nullptr;
 
     // status
     enum TerrainStatus system_status = TerrainStatusDisabled;
