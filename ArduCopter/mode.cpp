@@ -26,11 +26,10 @@ Copter::Mode::Mode(void) :
     ap(copter.ap),
     takeoff_state(copter.takeoff_state),
     ekfGndSpdLimit(copter.ekfGndSpdLimit),
-    ekfNavVelGainScaler(copter.ekfNavVelGainScaler),
 #if FRAME_CONFIG == HELI_FRAME
     heli_flags(copter.heli_flags),
 #endif
-    auto_yaw_mode(copter.auto_yaw_mode)
+    ekfNavVelGainScaler(copter.ekfNavVelGainScaler)
 { };
 
 // return the static controller object corresponding to supplied mode
@@ -596,21 +595,6 @@ void Copter::Mode::set_throttle_takeoff()
     return copter.set_throttle_takeoff();
 }
 
-void Copter::Mode::set_auto_yaw_mode(uint8_t yaw_mode)
-{
-    return copter.set_auto_yaw_mode(yaw_mode);
-}
-
-void Copter::Mode::set_auto_yaw_rate(float turn_rate_cds)
-{
-    return copter.set_auto_yaw_rate(turn_rate_cds);
-}
-
-void Copter::Mode::set_auto_yaw_look_at_heading(float angle_deg, float turn_rate_dps, int8_t direction, bool relative_angle)
-{
-    return copter.set_auto_yaw_look_at_heading(angle_deg, turn_rate_dps, direction, relative_angle);
-}
-
 void Copter::Mode::takeoff_timer_start(float alt_cm)
 {
     return copter.takeoff_timer_start(alt_cm);
@@ -624,16 +608,6 @@ void Copter::Mode::takeoff_stop()
 void Copter::Mode::takeoff_get_climb_rates(float& pilot_climb_rate, float& takeoff_climb_rate)
 {
     return copter.takeoff_get_climb_rates(pilot_climb_rate, takeoff_climb_rate);
-}
-
-float Copter::Mode::get_auto_heading()
-{
-    return copter.get_auto_heading();
-}
-
-float Copter::Mode::get_auto_yaw_rate_cds()
-{
-    return copter.get_auto_yaw_rate_cds();
 }
 
 float Copter::Mode::get_avoidance_adjusted_climbrate(float target_rate)
