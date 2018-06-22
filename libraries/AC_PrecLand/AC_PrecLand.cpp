@@ -101,6 +101,9 @@ AC_PrecLand::AC_PrecLand(const AP_AHRS& ahrs, const AP_InertialNav& inav) :
     _ahrs(ahrs),
     _inav(inav),
     _last_update_ms(0),
+    _quality_start_ms(0), //tms
+    _target_count(0), //tms
+    _target_quality(0), //tms
     _target_acquired(false),
     _last_backend_los_meas_ms(0),
     _backend(nullptr)
@@ -176,6 +179,44 @@ bool AC_PrecLand::target_acquired()
 {
     _target_acquired = _target_acquired && (AP_HAL::millis()-_last_update_ms) < 2000;
     return _target_acquired;
+}
+
+bool AC_PrecLand::target_quality(uint8_t& ret) //tms
+{
+    if (target_acquired()) {
+        if ((AP_HAL::millis()-_quality_start_ms) < 1000) {
+            // still adding up _target_count
+            if (_quality_start_ms==0) {
+                _quality_start_ms = AP_HAL::millis();
+            }
+        } else {
+            // calculate _target_quality after 1 second
+            if (_target_count>39) {
+                _target_quality = 5;
+            } else if (_target_count>29) {
+                _target_quality = 4;
+            } else if (_target_count>19) {
+                _target_quality = 3;
+            } else if (_target_count>9) {
+                _target_quality = 2;
+            } else if (_target_count>0) {
+                _target_quality = 1;
+            } else if (_target_count==0) {
+                _target_quality = 0;
+            }
+
+            _target_count = 0;
+            _quality_start_ms = AP_HAL::millis();
+        }
+    } else {
+        // target not acquired for 2 seconds
+        _target_quality = 0;
+        _target_count = 0;
+        _quality_start_ms = AP_HAL::millis();
+    }
+
+    ret = _target_quality;
+    return true;
 }
 
 bool AC_PrecLand::get_target_position_cm(Vector2f& ret)
@@ -255,6 +296,7 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
 
             // Output prediction
             if (target_acquired()) {
+                _target_count++;
                 run_output_prediction();
             }
             break;
@@ -305,6 +347,7 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 _target_vel_rel_est_NE.x = _ekf_x.getVel();
                 _target_vel_rel_est_NE.y = _ekf_y.getVel();
 
+                _target_count++;
                 run_output_prediction();
             }
             break;

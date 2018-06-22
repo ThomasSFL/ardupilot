@@ -72,6 +72,9 @@ public:
     // returns true when the landing target has been detected
     bool target_acquired();
 
+    // tms
+    bool target_quality(uint8_t& ret);
+
     // process a LANDING_TARGET mavlink message
     void handle_msg(mavlink_message_t* msg);
 
@@ -116,6 +119,9 @@ private:
     AP_Vector3f                 _cam_offset;        // Position of the camera relative to the CG
 
     uint32_t                    _last_update_ms;    // system time in millisecond when update was last called
+    uint32_t                    _quality_start_ms;   //tms
+    uint8_t                     _target_count;      //tms
+    uint8_t                     _target_quality;      //tms
     bool                        _target_acquired;   // true if target has been seen recently
     uint32_t                    _last_backend_los_meas_ms;  // system time target was last seen
 

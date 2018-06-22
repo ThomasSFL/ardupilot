@@ -663,6 +663,7 @@ struct PACKED log_Precland {
     uint64_t time_us;
     uint8_t healthy;
     uint8_t target_acquired;
+    uint8_t target_quality_log;
     float pos_x;
     float pos_y;
     float vel_x;
@@ -682,16 +683,19 @@ void Copter::Log_Write_Precland()
     Vector2f target_vel_rel = Vector2f(0.0f,0.0f);
     precland.get_target_position_relative_cm(target_pos_rel);
     precland.get_target_velocity_relative_cms(target_vel_rel);
+    uint8_t target_quality_num = 0;
+    precland.target_quality(target_quality_num);
 
     struct log_Precland pkt = {
         LOG_PACKET_HEADER_INIT(LOG_PRECLAND_MSG),
-        time_us         : AP_HAL::micros64(),
-        healthy         : precland.healthy(),
-        target_acquired : precland.target_acquired(),
-        pos_x           : target_pos_rel.x,
-        pos_y           : target_pos_rel.y,
-        vel_x           : target_vel_rel.x,
-        vel_y           : target_vel_rel.y
+        time_us            : AP_HAL::micros64(),
+        healthy            : precland.healthy(),
+        target_acquired    : precland.target_acquired(),
+        target_quality_log : target_quality_num,
+        pos_x              : target_pos_rel.x,
+        pos_y              : target_pos_rel.y,
+        vel_x              : target_vel_rel.x,
+        vel_y              : target_vel_rel.y
     };
     DataFlash.WriteBlock(&pkt, sizeof(pkt));
  #endif     // PRECISION_LANDING == ENABLED
@@ -873,7 +877,8 @@ const struct LogStructure Copter::log_structure[] = {
     { LOG_HELI_MSG, sizeof(log_Heli),
       "HELI",  "Qff",         "TimeUS,DRRPM,ERRPM" },
     { LOG_PRECLAND_MSG, sizeof(log_Precland),
-      "PL",    "QBBffff",    "TimeUS,Heal,TAcq,pX,pY,vX,vY" },
+      "PL",    "QBBBffff",    "TimeUS,Heal,TAcq,TQual,pX,pY,vX,vY" },
+      //"PL",    "QBBffff",    "TimeUS,Heal,TAcq,pX,pY,vX,vY" },
     { LOG_GUIDEDTARGET_MSG, sizeof(log_GuidedTarget),
       "GUID",  "QBffffff",    "TimeUS,Type,pX,pY,pZ,vX,vY,vZ" },
     { LOG_THROW_MSG, sizeof(log_Throw),
