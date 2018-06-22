@@ -181,7 +181,7 @@ bool AC_PrecLand::target_acquired()
     return _target_acquired;
 }
 
-bool AC_PrecLand::target_quality(uint8_t& ret) //tms
+bool AC_PrecLand::target_quality(uint16_t& ret) //tms
 {
     if (target_acquired()) {
         if ((AP_HAL::millis()-_quality_start_ms) < 1000) {
@@ -189,6 +189,7 @@ bool AC_PrecLand::target_quality(uint8_t& ret) //tms
             if (_quality_start_ms==0) {
                 _quality_start_ms = AP_HAL::millis();
             }
+            ret = _target_count;
         } else {
             // calculate _target_quality after 1 second
             if (_target_count>39) {
@@ -205,6 +206,7 @@ bool AC_PrecLand::target_quality(uint8_t& ret) //tms
                 _target_quality = 0;
             }
 
+            ret = _target_count;
             _target_count = 0;
             _quality_start_ms = AP_HAL::millis();
         }
@@ -213,9 +215,10 @@ bool AC_PrecLand::target_quality(uint8_t& ret) //tms
         _target_quality = 0;
         _target_count = 0;
         _quality_start_ms = AP_HAL::millis();
+        ret = _target_count;
     }
 
-    ret = _target_quality;
+    //ret = _target_quality;
     return true;
 }
 
@@ -291,12 +294,13 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 _target_vel_rel_est_NE.y = -inertial_data_delayed.inertialNavVelocity.y;
 
                 _last_update_ms = AP_HAL::millis();
+                _target_count++;
                 _target_acquired = true;
             }
 
             // Output prediction
             if (target_acquired()) {
-                _target_count++;
+                //_target_count++;
                 run_output_prediction();
             }
             break;
@@ -347,7 +351,7 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 _target_vel_rel_est_NE.x = _ekf_x.getVel();
                 _target_vel_rel_est_NE.y = _ekf_y.getVel();
 
-                _target_count++;
+                //_target_count++;
                 run_output_prediction();
             }
             break;

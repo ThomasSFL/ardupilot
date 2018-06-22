@@ -73,7 +73,7 @@ public:
     bool target_acquired();
 
     // tms
-    bool target_quality(uint8_t& ret);
+    bool target_quality(uint16_t& ret);
 
     // process a LANDING_TARGET mavlink message
     void handle_msg(mavlink_message_t* msg);
