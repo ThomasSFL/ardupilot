@@ -189,7 +189,6 @@ bool AC_PrecLand::target_quality(uint16_t& ret) //tms
             if (_quality_start_ms==0) {
                 _quality_start_ms = AP_HAL::millis();
             }
-            ret = _target_count;
         } else {
             // calculate _target_quality after 1 second
             if (_target_count>39) {
@@ -206,7 +205,7 @@ bool AC_PrecLand::target_quality(uint16_t& ret) //tms
                 _target_quality = 0;
             }
 
-            ret = _target_count;
+            _target_quality = _target_count;
             _target_count = 0;
             _quality_start_ms = AP_HAL::millis();
         }
@@ -218,7 +217,7 @@ bool AC_PrecLand::target_quality(uint16_t& ret) //tms
         ret = _target_count;
     }
 
-    //ret = _target_quality;
+    ret = _target_quality;
     return true;
 }
 
@@ -300,7 +299,6 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
 
             // Output prediction
             if (target_acquired()) {
-                //_target_count++;
                 run_output_prediction();
             }
             break;
@@ -327,6 +325,7 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                         _ekf_x.init(_target_pos_rel_meas_NED.x, xy_pos_var, 0.0f, sq(10.0f));
                         _ekf_y.init(_target_pos_rel_meas_NED.y, xy_pos_var, 0.0f, sq(10.0f));
                     }
+                    _target_count++;
                     _last_update_ms = AP_HAL::millis();
                     _target_acquired = true;
                 } else {
@@ -336,6 +335,7 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                         _outlier_reject_count = 0;
                         _ekf_x.fusePos(_target_pos_rel_meas_NED.x, xy_pos_var);
                         _ekf_y.fusePos(_target_pos_rel_meas_NED.y, xy_pos_var);
+                        _target_count++;
                         _last_update_ms = AP_HAL::millis();
                         _target_acquired = true;
                     } else {
@@ -351,7 +351,6 @@ void AC_PrecLand::run_estimator(float rangefinder_alt_m, bool rangefinder_alt_va
                 _target_vel_rel_est_NE.x = _ekf_x.getVel();
                 _target_vel_rel_est_NE.y = _ekf_y.getVel();
 
-                //_target_count++;
                 run_output_prediction();
             }
             break;
