@@ -1,4 +1,5 @@
 #include <AP_HAL/AP_HAL.h>
+#include <stdio.h>
 #include "AC_PrecLand.h"
 #include "AC_PrecLand_Backend.h"
 #include "AC_PrecLand_Companion.h"
@@ -206,6 +207,8 @@ bool AC_PrecLand::target_quality(uint16_t& ret) //tms
             }
 
             _target_quality = _target_count;
+            hal.uartA->printf("TQual: %hu \n", _target_quality);
+            hal.uartC->printf("TQual: %hu \n", _target_quality);
             _target_count = 0;
             _quality_start_ms = AP_HAL::millis();
         }
